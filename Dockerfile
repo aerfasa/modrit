@@ -1,6 +1,11 @@
 FROM node:18-bullseye
-# نصب git و python3 برای پشتیبانی از همه نوع ربات
-RUN apt-get update && apt-get install -y git python3 python3-pip
+
+# نصب پایتون و pip با قابلیت رفع خطای شبکه
+RUN apt-get update && \
+    apt-get install -y --fix-missing python3 python3-pip && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 COPY package.json ./
 RUN npm install
