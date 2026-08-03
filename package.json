@@ -1,0 +1,16 @@
+{
+  "name": "telegram-group-manager-bot",
+  "version": "1.0.0",
+  "description": "Telegram group management bot with setup wizard, deployable on Railway",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "bash start.sh"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "telegraf": "^4.16.3"
+  }
+}
