@@ -779,9 +779,12 @@ async function startBot(token, ownerId) {
   const bot = new Telegraf(token);
   registerCommands(bot, ownerId);
   bot.catch((err, ctx) => console.error('Bot error for update', ctx.updateType, err));
-  await bot.launch();
+  // IMPORTANT: bot.launch() only resolves once the bot is stopped, so it must
+  // NOT be awaited here — otherwise the HTTP request that triggered startBot
+  // (the setup form, or the auto-start on boot) would hang forever.
+  bot.launch().catch((e) => console.error('Bot launch error:', e.message));
   botInstance = bot;
-  console.log('Bot started successfully.');
+  console.log('Bot starting...');
   process.once('SIGINT', () => bot.stop('SIGINT'));
   process.once('SIGTERM', () => bot.stop('SIGTERM'));
   return bot;
