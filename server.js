@@ -6,11 +6,15 @@ const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ===================== متغیرهای محیطی =====================
+const ADMIN_USER = process.env.ADMIN_USERNAME || 'arian';
+const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'arian@11USER';
+
 // ===================== ساخت پوشه public =====================
 const PUBLIC_DIR = path.join(__dirname, 'public');
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
 
-// ===================== محتوای HTML =====================
+// ===================== HTML صفحه اصلی =====================
 const HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,8 +29,8 @@ const HTML = `<!DOCTYPE html>
 body{background:linear-gradient(135deg,#0a1929,#0c1b2e 50%,#0d1f36);color:var(--lt);font-family:'Exo 2',sans-serif;min-height:100vh}
 .grid{position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,255,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,255,.03) 1px,transparent 1px);background-size:40px;z-index:-1;pointer-events:none}
 .login{display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px}
-.login-box{background:rgba(10,25,41,.95);border-radius:20px;border:1px solid rgba(0,229,255,.2);width:100%;max-width:420px;padding:40px 30px;text-align:center;box-shadow:0 15px 35px rgba(0,0,0,.5);position:relative;overflow:hidden}
-.login-box::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--p),var(--s))}
+.lbox{background:rgba(10,25,41,.95);border-radius:20px;border:1px solid rgba(0,229,255,.2);width:100%;max-width:420px;padding:40px 30px;text-align:center;box-shadow:0 15px 35px rgba(0,0,0,.5);position:relative;overflow:hidden}
+.lbox::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--p),var(--s))}
 .logo{font-family:'Orbitron';font-size:2.5rem;font-weight:900;background:linear-gradient(90deg,var(--p),var(--s));-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:10px}
 .tag{color:var(--gr);margin-bottom:30px;font-size:.9rem}
 .ig{margin-bottom:18px;text-align:left}
@@ -38,21 +42,19 @@ body{background:linear-gradient(135deg,#0a1929,#0c1b2e 50%,#0d1f36);color:var(--
 .btn-full{width:100%;margin-top:10px}
 .btn-sm{padding:8px 14px;font-size:.85rem}
 .btn-danger{background:linear-gradient(90deg,var(--no),#c2185b)}
-.btn-warn{background:linear-gradient(90deg,var(--w),#e65100)}
-.btn-ok{background:linear-gradient(90deg,var(--ok),#2e7d32);color:#000}
 .panel{display:none;min-height:100vh;padding:20px}
 .header{display:flex;justify-content:space-between;align-items:center;padding:15px 20px;background:rgba(10,25,41,.8);backdrop-filter:blur(10px);border-radius:15px;border:1px solid rgba(0,229,255,.2);margin-bottom:30px;flex-wrap:wrap;gap:15px}
 .header h1{font-family:'Orbitron';font-size:1.5rem;background:linear-gradient(90deg,var(--p),var(--s));-webkit-background-clip:text;background-clip:text;color:transparent}
 .hright{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .ubox{display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(14,32,52,.8);border-radius:8px;border:1px solid rgba(0,229,255,.2);flex-wrap:wrap}
 .badge{padding:3px 8px;background:rgba(0,229,255,.2);border:1px solid var(--p);border-radius:12px;font-size:.7rem;color:var(--p);font-weight:700;text-transform:uppercase}
-.days-left{padding:3px 8px;background:rgba(255,145,0,.2);border:1px solid var(--w);border-radius:12px;font-size:.75rem;color:var(--w);font-weight:600}
-.days-left.expired{background:rgba(255,64,129,.2);border-color:var(--no);color:var(--no)}
+.dleft{padding:3px 8px;background:rgba(255,145,0,.2);border:1px solid var(--w);border-radius:12px;font-size:.75rem;color:var(--w);font-weight:600}
+.dleft.exp{background:rgba(255,64,129,.2);border-color:var(--no);color:var(--no)}
 .dash{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;margin-bottom:30px}
 .card{background:rgba(10,25,41,.8);backdrop-filter:blur(10px);border-radius:15px;border:1px solid rgba(0,229,255,.2);padding:18px;transition:.3s;position:relative}
 .card:hover{transform:translateY(-3px);border-color:var(--p);box-shadow:0 10px 25px rgba(0,0,0,.4)}
-.card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(0,229,255,.1)}
-.card-t{font-family:'Orbitron';font-size:1.15rem}
+.ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(0,229,255,.1)}
+.ct{font-family:'Orbitron';font-size:1.15rem}
 .mbtn{background:none;border:none;color:var(--gr);font-size:1.1rem;cursor:pointer;padding:5px;border-radius:5px}
 .mbtn:hover{color:var(--p);background:rgba(0,229,255,.1)}
 .dd{position:absolute;top:100%;right:0;background:rgba(10,25,41,.95);border:1px solid rgba(0,229,255,.3);border-radius:10px;min-width:180px;z-index:100;display:none;box-shadow:0 10px 25px rgba(0,0,0,.4)}
@@ -61,7 +63,7 @@ body{background:linear-gradient(135deg,#0a1929,#0c1b2e 50%,#0d1f36);color:var(--
 .dd a:last-child{border-bottom:none}
 .dd a:hover{background:rgba(0,229,255,.1);color:var(--p)}
 .dd a i{width:16px;text-align:center}
-.cstat{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.cs{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .sdot{width:10px;height:10px;border-radius:50%;background:var(--ok)}
 .sdot.off{background:var(--no)}
 .stxt{font-size:.85rem;color:var(--gr)}
@@ -71,14 +73,14 @@ body{background:linear-gradient(135deg,#0a1929,#0c1b2e 50%,#0d1f36);color:var(--
 .tog .sl:before{position:absolute;content:"";height:16px;width:16px;left:3px;bottom:3px;background:white;transition:.4s;border-radius:50%}
 input:checked+.sl{background:rgba(0,230,118,.5)}
 input:checked+.sl:before{transform:translateX(22px)}
-.cdet{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.cd{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .di{background:rgba(14,32,52,.5);border-radius:8px;padding:10px;border-left:3px solid var(--p)}
 .dl{font-size:.75rem;color:var(--gr);margin-bottom:3px}
 .dv{font-size:1rem;font-weight:600}
-.pbar{height:6px;background:rgba(14,32,52,.5);border-radius:3px;overflow:hidden;margin-bottom:10px}
-.pfill{height:100%;background:linear-gradient(90deg,var(--p),var(--ok));transition:width .5s}
-.cact{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.cact .btn{flex:1;min-width:80px;font-size:.8rem;padding:8px}
+.pb{height:6px;background:rgba(14,32,52,.5);border-radius:3px;overflow:hidden;margin-bottom:10px}
+.pf{height:100%;background:linear-gradient(90deg,var(--p),var(--ok));transition:width .5s}
+.ca{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.ca .btn{flex:1;min-width:80px;font-size:.8rem;padding:8px}
 .modal{display:none;position:fixed;inset:0;background:rgba(6,18,31,.95);backdrop-filter:blur(5px);z-index:1000;justify-content:center;align-items:center;padding:20px}
 .modal.show{display:flex}
 .mbox{background:rgba(10,25,41,.95);border-radius:15px;border:1px solid rgba(0,229,255,.3);width:100%;max-width:500px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 50px rgba(0,0,0,.5)}
@@ -120,14 +122,14 @@ select:focus,input:focus{outline:none;border-color:var(--p);box-shadow:0 0 10px 
 .footer{text-align:center;padding:20px;color:var(--gr);font-size:.85rem;border-top:1px solid rgba(0,229,255,.1);margin-top:20px}
 .footer a{color:var(--p);text-decoration:none}
 @keyframes shake{0%,100%{transform:translateX(0)}10%,30%,50%,70%,90%{transform:translateX(-5px)}20%,40%,60%,80%{transform:translateX(5px)}}
-@media(max-width:768px){.dash{grid-template-columns:1fr}.header{flex-direction:column;text-align:center}.fr{grid-template-columns:1fr}.cdet{grid-template-columns:1fr}}
+@media(max-width:768px){.dash{grid-template-columns:1fr}.header{flex-direction:column;text-align:center}.fr{grid-template-columns:1fr}.cd{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="grid"></div>
 
 <div class="login" id="loginScr">
-<div class="login-box">
+<div class="lbox">
 <div class="logo">PUG62</div>
 <p class="tag">WireGuard Management Panel</p>
 <div class="ig"><label><i class="fas fa-user"></i> USERNAME</label><input type="text" id="lu" placeholder="Username" autocomplete="username"></div>
@@ -149,7 +151,7 @@ select:focus,input:focus{outline:none;border-color:var(--p);box-shadow:0 0 10px 
 <i class="fas fa-user-secret" style="color:var(--p)"></i>
 <span id="hUser">USER</span>
 <span class="badge" id="hRole">ADMIN</span>
-<span class="days-left" id="hDays" style="display:none"></span>
+<span class="dleft" id="hDays" style="display:none"></span>
 </div>
 <button class="btn btn-sm btn-danger" onclick="logout()"><i class="fas fa-sign-out-alt"></i></button>
 </div>
@@ -222,7 +224,7 @@ select:focus,input:focus{outline:none;border-color:var(--p);box-shadow:0 0 10px 
 <div class="mbox">
 <div class="mh"><h2 class="mt"><i class="fas fa-link"></i> SUB LINK</h2><button class="mx" onclick="closeM('subM')">&times;</button></div>
 <div class="mb">
-<p style="color:var(--gr);margin-bottom:12px;font-size:.85rem">Copy this link for subscription:</p>
+<p style="color:var(--gr);margin-bottom:12px;font-size:.85rem">Copy this link:</p>
 <input type="text" id="subIn" readonly style="font-size:.8rem">
 </div>
 <div class="mf"><button class="btn btn-sm" onclick="closeM('subM')">CLOSE</button><button class="btn btn-sm" onclick="copySub()">COPY</button></div>
@@ -253,7 +255,7 @@ const u=document.getElementById('lu').value.trim();
 const p=document.getElementById('lp').value;
 if(!u||!p){toast('Error','Enter credentials','err');return}
 const d=await api('/login',{method:'POST',body:{username:u,password:p}});
-if(!d.token){toast('Error',d.error||'Failed','err');document.querySelector('.login-box').style.animation='shake .5s';setTimeout(()=>document.querySelector('.login-box').style.animation='',500);return}
+if(!d.token){toast('Error',d.error||'Failed','err');document.querySelector('.lbox').style.animation='shake .5s';setTimeout(()=>document.querySelector('.lbox').style.animation='',500);return}
 token=d.token;localStorage.setItem('pug_t',token);me=d;showPanel()}
 
 async function checkMe(){
@@ -269,7 +271,7 @@ document.getElementById('mainPanel').style.display='block';
 document.getElementById('hUser').textContent=me.username;
 document.getElementById('hRole').textContent=me.role.toUpperCase();
 const hd=document.getElementById('hDays');
-if(me.daysRemaining!==null){hd.style.display='inline-block';hd.textContent=me.daysRemaining+'d left';if(me.daysRemaining===0){hd.classList.add('expired');hd.textContent='EXPIRED'}}else hd.style.display='none';
+if(me.daysRemaining!==null){hd.style.display='inline-block';hd.textContent=me.daysRemaining+'d left';if(me.daysRemaining===0){hd.classList.add('exp');hd.textContent='EXPIRED'}}else hd.style.display='none';
 document.getElementById('setBtn').style.display=me.role==='admin'?'inline-flex':'none';
 loadCfgs()}
 
@@ -288,7 +290,7 @@ el.innerHTML=configs.sort((a,b)=>String(b.id).localeCompare(String(a.id))).map(c
 const dr=Math.max(0,Math.ceil((new Date(c.expireDate)-new Date())/864e5));
 const vp=c.volume===-1?0:Math.min(100,(c.volumeUsed/c.volume)*100);
 const ob=me.role==='admin'&&c.owner&&c.owner!==me.username?'<span style="color:var(--w);font-size:.75rem"> 👤'+c.owner+'</span>':'';
-return '<div class="card"><div class="card-h"><h3 class="card-t">'+c.name+ob+'</h3><div style="position:relative"><button class="mbtn" onclick="togMenu(this)"><i class="fas fa-ellipsis-v"></i></button><div class="dd"><a onclick="togCfg(\\''+c.id+'\\')"><i class="fas fa-power-off"></i> '+(c.isActive?'Disable':'Enable')+'</a><a onclick="showDet(\\''+c.id+'\\')"><i class="fas fa-info-circle"></i> Details</a><a onclick="openAD(\\''+c.id+'\\')"><i class="fas fa-database"></i> Add Data</a><a onclick="openADy(\\''+c.id+'\\')"><i class="fas fa-calendar-plus"></i> Add Days</a><a onclick="dlCfg(\\''+c.id+'\\')"><i class="fas fa-download"></i> Download</a><a onclick="copySubL(\\''+c.id+'\\')"><i class="fas fa-link"></i> Sub Link</a><a onclick="delCfg(\\''+c.id+'\\')" style="color:var(--no)"><i class="fas fa-trash"></i> Delete</a></div></div></div><div class="cstat"><div class="sdot '+(c.isActive?'':'off')+'"></div><span class="stxt">'+(c.isActive?'Active':'Inactive')+'</span><label class="tog"><input type="checkbox" '+(c.isActive?'checked':'')+' onchange="togCfg(\\''+c.id+'\\')"><span class="sl"></span></label></div><div class="cdet"><div class="di"><div class="dl">SERVER</div><div class="dv">'+c.country+'</div></div><div class="di"><div class="dl">DAYS LEFT</div><div class="dv">'+dr+'</div></div><div class="di"><div class="dl">TOTAL</div><div class="dv">'+(c.volume===-1?'∞':c.volume+' GB')+'</div></div><div class="di"><div class="dl">USED</div><div class="dv">'+c.volumeUsed.toFixed(1)+' GB</div></div></div><div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--gr);margin-bottom:4px"><span>Data</span><span>'+c.volumeUsed.toFixed(1)+'/'+(c.volume===-1?'∞':c.volume)+' GB</span></div><div class="pbar"><div class="pfill" style="width:'+vp+'%"></div></div></div><div class="cact"><button class="btn btn-sm" onclick="showDet(\\''+c.id+'\\')"><i class="fas fa-info-circle"></i></button><button class="btn btn-sm" onclick="dlCfg(\\''+c.id+'\\')"><i class="fas fa-download"></i></button><button class="btn btn-sm" onclick="copySubL(\\''+c.id+'\\')"><i class="fas fa-link"></i></button></div></div>'}).join('')}
+return '<div class="card"><div class="ch"><h3 class="ct">'+c.name+ob+'</h3><div style="position:relative"><button class="mbtn" onclick="togMenu(this)"><i class="fas fa-ellipsis-v"></i></button><div class="dd"><a onclick="togCfg(\\''+c.id+'\\')"><i class="fas fa-power-off"></i> '+(c.isActive?'Disable':'Enable')+'</a><a onclick="showDet(\\''+c.id+'\\')"><i class="fas fa-info-circle"></i> Details</a><a onclick="openAD(\\''+c.id+'\\')"><i class="fas fa-database"></i> Add Data</a><a onclick="openADy(\\''+c.id+'\\')"><i class="fas fa-calendar-plus"></i> Add Days</a><a onclick="dlCfg(\\''+c.id+'\\')"><i class="fas fa-download"></i> Download</a><a onclick="copySubL(\\''+c.id+'\\')"><i class="fas fa-link"></i> Sub Link</a><a onclick="delCfg(\\''+c.id+'\\')" style="color:var(--no)"><i class="fas fa-trash"></i> Delete</a></div></div></div><div class="cs"><div class="sdot '+(c.isActive?'':'off')+'"></div><span class="stxt">'+(c.isActive?'Active':'Inactive')+'</span><label class="tog"><input type="checkbox" '+(c.isActive?'checked':'')+' onchange="togCfg(\\''+c.id+'\\')"><span class="sl"></span></label></div><div class="cd"><div class="di"><div class="dl">SERVER</div><div class="dv">'+c.country+'</div></div><div class="di"><div class="dl">DAYS LEFT</div><div class="dv">'+dr+'</div></div><div class="di"><div class="dl">TOTAL</div><div class="dv">'+(c.volume===-1?'∞':c.volume+' GB')+'</div></div><div class="di"><div class="dl">USED</div><div class="dv">'+c.volumeUsed.toFixed(1)+' GB</div></div></div><div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--gr);margin-bottom:4px"><span>Data</span><span>'+c.volumeUsed.toFixed(1)+'/'+(c.volume===-1?'∞':c.volume)+' GB</span></div><div class="pb"><div class="pf" style="width:'+vp+'%"></div></div></div><div class="ca"><button class="btn btn-sm" onclick="showDet(\\''+c.id+'\\')"><i class="fas fa-info-circle"></i></button><button class="btn btn-sm" onclick="dlCfg(\\''+c.id+'\\')"><i class="fas fa-download"></i></button><button class="btn btn-sm" onclick="copySubL(\\''+c.id+'\\')"><i class="fas fa-link"></i></button></div></div>'}).join('')}
 
 function togMenu(b){document.querySelectorAll('.dd').forEach(d=>{if(d!==b.nextElementSibling)d.classList.remove('show')});b.nextElementSibling.classList.toggle('show')}
 document.addEventListener('click',e=>{if(!e.target.closest('.mbtn'))document.querySelectorAll('.dd').forEach(d=>d.classList.remove('show'))});
@@ -314,7 +316,7 @@ function showDet(id){
 const c=getCfg(id);if(!c)return;curCfg=c;
 const dr=Math.max(0,Math.ceil((new Date(c.expireDate)-new Date())/864e5));
 const vp=c.volume===-1?0:Math.min(100,(c.volumeUsed/c.volume)*100);
-document.getElementById('detBody').innerHTML='<div class="cdet" style="grid-template-columns:1fr"><div class="di"><div class="dl">NAME</div><div class="dv">'+c.name+'</div></div></div><div class="fr"><div class="di"><div class="dl">SERVER</div><div class="dv">'+c.country+'</div></div><div class="di"><div class="dl">CREATED</div><div class="dv">'+new Date(c.createdDate).toLocaleDateString()+'</div></div></div><div class="fr"><div class="di"><div class="dl">EXPIRE</div><div class="dv">'+new Date(c.expireDate).toLocaleDateString()+' ('+dr+'d)</div></div><div class="di"><div class="dl">STATUS</div><div class="dv" style="color:'+(c.isActive?'var(--ok)':'var(--no)')+'">'+(c.isActive?'ACTIVE':'INACTIVE')+'</div></div></div><div class="fr"><div class="di"><div class="dl">TOTAL</div><div class="dv">'+(c.volume===-1?'Unlimited':c.volume+' GB')+'</div></div><div class="di"><div class="dl">USED</div><div class="dv">'+c.volumeUsed.toFixed(1)+' GB ('+vp.toFixed(1)+'%)</div></div></div><div style="margin-top:15px"><div style="display:flex;justify-content:space-between;font-size:.85rem;color:var(--gr);margin-bottom:4px"><span>Usage</span><span>'+c.volumeUsed.toFixed(1)+'/'+(c.volume===-1?'∞':c.volume)+' GB</span></div><div class="pbar"><div class="pfill" style="width:'+vp+'%"></div></div></div>';
+document.getElementById('detBody').innerHTML='<div class="cd" style="grid-template-columns:1fr"><div class="di"><div class="dl">NAME</div><div class="dv">'+c.name+'</div></div></div><div class="fr"><div class="di"><div class="dl">SERVER</div><div class="dv">'+c.country+'</div></div><div class="di"><div class="dl">CREATED</div><div class="dv">'+new Date(c.createdDate).toLocaleDateString()+'</div></div></div><div class="fr"><div class="di"><div class="dl">EXPIRE</div><div class="dv">'+new Date(c.expireDate).toLocaleDateString()+' ('+dr+'d)</div></div><div class="di"><div class="dl">STATUS</div><div class="dv" style="color:'+(c.isActive?'var(--ok)':'var(--no)')+'">'+(c.isActive?'ACTIVE':'INACTIVE')+'</div></div></div><div class="fr"><div class="di"><div class="dl">TOTAL</div><div class="dv">'+(c.volume===-1?'Unlimited':c.volume+' GB')+'</div></div><div class="di"><div class="dl">USED</div><div class="dv">'+c.volumeUsed.toFixed(1)+' GB ('+vp.toFixed(1)+'%)</div></div></div><div style="margin-top:15px"><div style="display:flex;justify-content:space-between;font-size:.85rem;color:var(--gr);margin-bottom:4px"><span>Usage</span><span>'+c.volumeUsed.toFixed(1)+'/'+(c.volume===-1?'∞':c.volume)+' GB</span></div><div class="pb"><div class="pf" style="width:'+vp+'%"></div></div></div>';
 openM('detM')}
 
 function dlCfg(id){const c=getCfg(id);if(c)dlDirect(c)}
@@ -340,7 +342,6 @@ openM('subM');
 navigator.clipboard.writeText(link).then(()=>toast('Copied','Link copied')).catch(()=>toast('Manual','Copy from input','warn'))}
 function copySub(){const i=document.getElementById('subIn');i.select();document.execCommand('copy');toast('Copied','Link copied')}
 
-// Settings
 function openSet(){loadUsers();openM('setM')}
 function showTab(id,btn){document.querySelectorAll('.tc').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById(id).classList.add('active');btn.classList.add('active')}
 
@@ -373,7 +374,6 @@ if(!confirm('Delete "'+u+'"?'))return;
 await api('/users/'+u,{method:'DELETE'});
 toast('Deleted','User deleted');loadUsers()}
 
-// Add Data/Days modals (inline)
 async function openAD(id){
 const amt=prompt('Amount (GB):','10');
 if(!amt||isNaN(amt)||amt<=0)return;
@@ -421,13 +421,18 @@ function saveData() {
 
 let db = loadData();
 
-if (!db.users.find(u => u.username === 'arian')) {
+// ===================== ایجاد ادمین پیش‌فرض از متغیرهای محیطی =====================
+if (!db.users.find(u => u.username === ADMIN_USER)) {
     db.users.push({
-        username: 'arian', password: 'arian@11USER', role: 'admin',
-        createdAt: new Date().toISOString(), expiresAt: null, isActive: true
+        username: ADMIN_USER,
+        password: ADMIN_PASS,
+        role: 'admin',
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        isActive: true
     });
     saveData();
-    console.log('✅ Admin: arian / arian@11USER');
+    console.log(`✅ Admin created: ${ADMIN_USER}`);
 }
 
 const genToken = () => crypto.randomBytes(32).toString('hex');
@@ -642,5 +647,5 @@ app.get('*', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 // ===================== Start =====================
 app.listen(PORT, () => {
     console.log(`✅ PUG62 Panel on port ${PORT}`);
-    console.log(`👤 Admin: arian / arian@11USER`);
+    console.log(`👤 Admin: ${ADMIN_USER}`);
 });
