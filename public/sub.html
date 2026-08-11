@@ -1,0 +1,2366 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="color-scheme" content="dark">
+  <title>Subscription Info</title>
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("sub_lang");
+        var browserLang = (navigator.language || "en").toLowerCase();
+        var initialLang = saved === "fa" || saved === "en"
+          ? saved
+          : (browserLang.indexOf("fa") === 0 ? "fa" : "en");
+        document.documentElement.lang = initialLang;
+        document.documentElement.dir = initialLang === "fa" ? "rtl" : "ltr";
+        window.__initialLang = initialLang;
+      } catch (error) {
+        window.__initialLang = "en";
+      }
+    }());
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #080b12;
+      --surface: #101622;
+      --surface-2: #0b111c;
+      --surface-3: #151c2b;
+      --line: rgba(255, 255, 255, 0.085);
+      --line-strong: rgba(255, 255, 255, 0.16);
+      --text: #f8fafc;
+      --muted: #8c98aa;
+      --cyan: #2dd4bf;
+      --blue: #3b82f6;
+      --violet: #8b5cf6;
+      --slate: #536178;
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #fb7185;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      min-width: 320px;
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 440px at 10% -10%, rgba(139, 92, 246, 0.14), transparent 62%),
+        radial-gradient(720px 420px at 100% 0%, rgba(45, 212, 191, 0.09), transparent 58%),
+        var(--bg);
+    }
+
+    #particles-js {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body > *:not(#particles-js) {
+      position: relative;
+      z-index: 1;
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      content: "";
+      opacity: 0.18;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(to bottom, black, transparent 72%);
+    }
+
+    html[lang="fa"] body {
+      font-family: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+    }
+
+    button,
+    a {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 30px 0 24px;
+    }
+
+    .site-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 26px;
+      animation: reveal 0.5s ease both;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      place-items: center;
+      color: white;
+      border: 1px solid rgba(139, 92, 246, 0.42);
+      border-radius: 13px;
+      background: linear-gradient(145deg, rgba(139, 92, 246, 0.28), rgba(45, 212, 191, 0.08));
+      box-shadow: 0 12px 32px -16px rgba(139, 92, 246, 0.9);
+    }
+
+    .brand-copy {
+      min-width: 0;
+    }
+
+    .brand-name {
+      overflow: hidden;
+      margin: 0;
+      color: #fff;
+      font-size: clamp(1.1rem, 3vw, 1.45rem);
+      font-weight: 800;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .brand-subtitle {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 500;
+    }
+
+    .lang-button {
+      display: inline-flex;
+      min-height: 40px;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 12px;
+      color: #dbe4f0;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.045);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 700;
+      transition: 180ms ease;
+    }
+
+    .lang-button:hover,
+    .lang-button:focus-visible {
+      border-color: var(--line-strong);
+      background: rgba(255, 255, 255, 0.085);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .notice {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+      padding: 13px 15px;
+      color: #fdecc8;
+      border: 1px solid rgba(251, 191, 36, 0.34);
+      border-radius: 14px;
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.14), rgba(251, 113, 133, 0.08));
+      animation: slide-down 0.42s ease both;
+    }
+
+    .notice.danger {
+      color: #ffe4e6;
+      border-color: rgba(251, 113, 133, 0.38);
+      background: linear-gradient(90deg, rgba(244, 63, 94, 0.14), rgba(139, 92, 246, 0.08));
+    }
+
+    .notice-body {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 11px;
+    }
+
+    .notice-icon {
+      display: grid;
+      flex: 0 0 auto;
+      place-items: center;
+      animation: warning-pulse 2.2s ease-in-out infinite;
+    }
+
+    .notice-text {
+      margin: 0;
+      font-size: 0.79rem;
+      font-weight: 600;
+      line-height: 1.65;
+    }
+
+    .notice-close {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      place-items: center;
+      color: #e2e8f0;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.07);
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .notice-close:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(280px, 350px) minmax(0, 1fr);
+      align-items: start;
+      gap: 18px;
+    }
+
+    .right-column {
+      display: grid;
+      gap: 18px;
+    }
+
+    .panel {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 34%),
+        var(--surface);
+      box-shadow: 0 22px 55px -38px rgba(0, 0, 0, 0.95);
+      animation: reveal 0.55s ease both;
+    }
+
+    .right-column .panel:nth-child(1) { animation-delay: 60ms; }
+    .right-column .panel:nth-child(2) { animation-delay: 110ms; }
+    .right-column .panel:nth-child(3) { animation-delay: 160ms; }
+
+    .panel-body {
+      padding: 21px;
+    }
+
+    .panel-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .panel-title {
+      margin: 0;
+      color: #f8fafc;
+      font-size: 0.93rem;
+      font-weight: 750;
+    }
+
+    .section-kicker {
+      color: var(--muted);
+      font-size: 0.73rem;
+      font-weight: 600;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.045em;
+      text-transform: uppercase;
+    }
+
+    .status::before {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      content: "";
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .status.active {
+      color: var(--green);
+      background: rgba(52, 211, 153, 0.11);
+      box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.24);
+    }
+
+    .status.expired {
+      color: var(--red);
+      background: rgba(251, 113, 133, 0.11);
+      box-shadow: inset 0 0 0 1px rgba(251, 113, 133, 0.24);
+    }
+
+    .status.disabled {
+      color: #94a3b8;
+      background: rgba(148, 163, 184, 0.1);
+      box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
+    }
+
+    .usage-ring {
+      position: relative;
+      width: min(235px, 80vw);
+      aspect-ratio: 1;
+      margin: 6px auto 21px;
+    }
+
+    .usage-ring::before {
+      position: absolute;
+      inset: 14%;
+      border-radius: 50%;
+      pointer-events: none;
+      content: "";
+      background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0));
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .usage-ring svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .ring-track,
+    .ring-segment {
+      fill: none;
+    }
+
+    .ring-track {
+      stroke: rgba(255, 255, 255, 0.06);
+      stroke-width: 13;
+    }
+
+    .ring-segment {
+      stroke-width: 15;
+      stroke-linecap: butt;
+      stroke-linejoin: miter;
+      cursor: pointer;
+      transition: opacity 240ms ease, stroke-width 240ms ease, filter 240ms ease, stroke 240ms ease;
+    }
+
+    .ring-segment.download { stroke: var(--blue); }
+    .ring-segment.upload { stroke: var(--violet); }
+    .ring-segment.remained { stroke: var(--slate); }
+    .ring-segment.remained.high-usage { stroke: var(--red); }
+    .ring-segment.dimmed { opacity: 0.22; }
+
+    .ring-segment.active {
+      stroke-width: 17.5;
+      filter: drop-shadow(0 0 7px currentColor);
+    }
+
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      padding: 44px;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .ring-label {
+      color: var(--muted);
+      font-size: 0.64rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }
+
+    .ring-value {
+      max-width: 100%;
+      overflow: hidden;
+      margin-top: 6px;
+      color: #fff;
+      font-size: 1.25rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .fade-swap {
+      animation: fade-swap 0.25s ease both;
+    }
+
+    .legend {
+      display: grid;
+      gap: 4px;
+    }
+
+    .legend-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 0 -7px;
+      padding: 7px;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .legend-row:hover,
+    .legend-row.active {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .legend-row.dimmed {
+      opacity: 0.34;
+    }
+
+    .legend-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 550;
+    }
+
+    .legend-dot {
+      width: 7px;
+      height: 7px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      transition: background 240ms ease, box-shadow 240ms ease;
+    }
+
+    .legend-dot.download { background: var(--blue); box-shadow: 0 0 8px rgba(59, 130, 246, 0.7); }
+    .legend-dot.upload { background: var(--violet); box-shadow: 0 0 8px rgba(139, 92, 246, 0.7); }
+    .legend-dot.remained { background: var(--slate); }
+    .legend-dot.remained.high-usage { background: var(--red); box-shadow: 0 0 8px rgba(251, 113, 133, 0.7); }
+
+    .legend-value {
+      color: #dbe4f0;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      direction: ltr;
+      white-space: nowrap;
+      transition: color 240ms ease;
+    }
+
+    .legend-row.high-usage .legend-value {
+      color: var(--red);
+    }
+
+    .legend-row.high-usage .legend-key {
+      color: #fca5b1;
+    }
+
+    .legend-row-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .legend-progress-track {
+      height: 4px;
+      margin-top: 7px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .legend-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: var(--blue);
+      transition: width 420ms ease, background-color 240ms ease;
+    }
+
+    .legend-progress-fill.download { background: var(--blue); }
+    .legend-progress-fill.upload { background: var(--violet); }
+    .legend-progress-fill.remained { background: var(--slate); }
+    .legend-progress-fill.remained.high-alert { background: var(--red); }
+
+    .legend-progress-meta {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.6rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      direction: ltr;
+      text-align: left;
+    }
+
+    .legend-progress-meta.high-alert {
+      color: var(--red);
+    }
+
+    .legend-progress.hidden-progress {
+      display: none;
+    }
+
+    .last-online {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 17px;
+      padding-top: 15px;
+      color: var(--muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.055);
+      font-size: 0.71rem;
+      font-weight: 550;
+    }
+
+    .last-online strong {
+      color: #aeb9c8;
+      font-weight: 650;
+    }
+
+    .countdown-panel::before {
+      position: absolute;
+      top: 0;
+      right: 0;
+      left: 0;
+      height: 3px;
+      content: "";
+      background: linear-gradient(90deg, var(--violet), #a855f7, #ec4899);
+    }
+
+    .expiry-date {
+      color: #718096;
+      font-size: 0.68rem;
+      font-weight: 600;
+      direction: ltr;
+    }
+
+    .countdown-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      direction: ltr;
+    }
+
+    .count-box {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      flex-direction: column;
+      gap: 6px;
+      padding: 14px 4px 12px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface-2);
+      transition: 200ms ease;
+    }
+
+    .count-box:hover {
+      border-color: rgba(139, 92, 246, 0.34);
+      transform: translateY(-2px);
+    }
+
+    .count-value {
+      color: #fff;
+      font-size: clamp(1.15rem, 4vw, 1.48rem);
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .count-box:last-child .count-value {
+      color: #b47cff;
+    }
+
+    .count-label {
+      overflow: hidden;
+      max-width: 100%;
+      color: #66748a;
+      font-size: 0.56rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .url-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface-2);
+    }
+
+    .url-icon {
+      flex: 0 0 auto;
+      color: #68758a;
+    }
+
+    .url-text {
+      overflow: hidden;
+      min-width: 0;
+      flex: 1 1 auto;
+      color: #c5cfdd;
+      font-family: "Inter", ui-monospace, monospace;
+      font-size: 0.75rem;
+      direction: ltr;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .icon-button {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      place-items: center;
+      color: #8b98aa;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.045);
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible {
+      color: #fff;
+      border-color: var(--line-strong);
+      background: rgba(255, 255, 255, 0.09);
+      outline: none;
+    }
+
+    .icon-button.success {
+      color: var(--green);
+      border-color: rgba(52, 211, 153, 0.3);
+      background: rgba(52, 211, 153, 0.1);
+    }
+
+    .link-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 11px;
+    }
+
+    .text-link {
+      display: inline-flex;
+      min-height: 34px;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 11px;
+      color: #bcc7d6;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.035);
+      font-size: 0.69rem;
+      font-weight: 700;
+      transition: 180ms ease;
+    }
+
+    .text-link:hover,
+    .text-link:focus-visible {
+      color: #fff;
+      border-color: var(--line-strong);
+      background: rgba(255, 255, 255, 0.075);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .copy-all {
+      display: inline-flex;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      padding: 8px 12px;
+      color: #fff;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #6d3dde, #9b56eb);
+      box-shadow: 0 11px 24px -14px rgba(139, 92, 246, 0.95);
+      cursor: pointer;
+      font-size: 0.7rem;
+      font-weight: 750;
+      transition: 180ms ease;
+    }
+
+    .copy-all:hover,
+    .copy-all:focus-visible {
+      filter: brightness(1.1);
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .copy-all.success {
+      background: linear-gradient(135deg, #059669, #10b981);
+    }
+
+    .copy-all:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: none;
+      transform: none;
+    }
+
+    .configs-scroll-wrap {
+      position: relative;
+      padding-inline-end: 12px;
+    }
+
+    .configs-list {
+      display: grid;
+      gap: 9px;
+      max-height: 420px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scroll-behavior: smooth;
+      -webkit-overflow-scrolling: touch;
+      padding-inline-end: 6px;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139, 92, 246, 0.55) rgba(255, 255, 255, 0.04);
+    }
+
+    .configs-list::-webkit-scrollbar {
+      width: 7px;
+    }
+
+    .configs-list::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.035);
+      border-radius: 10px;
+      margin-block: 2px;
+    }
+
+    .configs-list::-webkit-scrollbar-thumb {
+      background: linear-gradient(180deg, #9b6bf0, #6d3dde);
+      border-radius: 10px;
+    }
+
+    .configs-list::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(180deg, #b083ff, #7c46e6);
+    }
+
+    .configs-scroll-wrap.is-scrollable .configs-list {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+    .configs-scroll-wrap.is-scrollable .configs-list::-webkit-scrollbar {
+      display: none;
+      width: 0;
+      height: 0;
+    }
+
+    .scroll-fade {
+      position: absolute;
+      right: 0;
+      left: 0;
+      height: 30px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 220ms ease;
+      z-index: 2;
+    }
+
+    .scroll-fade-top {
+      top: 0;
+      background: linear-gradient(to bottom, var(--surface) 15%, transparent);
+    }
+
+    .scroll-fade-bottom {
+      bottom: 0;
+      background: linear-gradient(to top, var(--surface) 15%, transparent);
+    }
+
+    .scroll-fade.visible {
+      opacity: 1;
+    }
+
+    .custom-scrollbar-track {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      inset-inline-end: 0;
+      width: 5px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 240ms ease;
+      z-index: 3;
+    }
+
+    .configs-scroll-wrap.is-scrollable .custom-scrollbar-track {
+      opacity: 1;
+    }
+
+    .custom-scrollbar-thumb {
+      position: absolute;
+      inset-inline-start: 0;
+      top: 0;
+      width: 100%;
+      height: 30%;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #b083ff, #6d3dde);
+      box-shadow: 0 0 8px rgba(139, 92, 246, 0.55);
+      transition: top 120ms linear;
+    }
+
+    .scroll-hint {
+      position: absolute;
+      bottom: 4px;
+      inset-inline-end: 14px;
+      display: grid;
+      width: 24px;
+      height: 24px;
+      place-items: center;
+      color: #dcc9ff;
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      border-radius: 50%;
+      background: rgba(109, 61, 222, 0.28);
+      backdrop-filter: blur(2px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 240ms ease;
+      z-index: 3;
+      animation: scroll-hint-bounce 1.6s ease-in-out infinite;
+    }
+
+    .scroll-hint.visible {
+      opacity: 1;
+    }
+
+    @keyframes scroll-hint-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(4px); }
+    }
+
+    .config-row {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--surface-2);
+      transition: 180ms ease;
+    }
+
+    .config-row:hover {
+      border-color: var(--line-strong);
+      background: #0e1522;
+      transform: translateX(2px);
+    }
+
+    html[dir="rtl"] .config-row:hover {
+      transform: translateX(-2px);
+    }
+
+    .config-copy {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      flex-wrap: wrap;
+      row-gap: 6px;
+      gap: 10px;
+    }
+
+    .badge-group {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .protocol-badge,
+    .type-badge,
+    .security-badge {
+      flex: 0 0 auto;
+      padding: 4px 7px;
+      border-radius: 7px;
+      font-size: 0.58rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-align: center;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .protocol-badge {
+      min-width: 52px;
+      color: #a9f5e8;
+      border: 1px solid rgba(45, 212, 191, 0.27);
+      background: rgba(45, 212, 191, 0.08);
+    }
+
+    .protocol-badge.vmess,
+    .protocol-badge.trojan {
+      color: #cab5ff;
+      border-color: rgba(139, 92, 246, 0.31);
+      background: rgba(139, 92, 246, 0.09);
+    }
+
+    .protocol-badge.ss,
+    .protocol-badge.hysteria2,
+    .protocol-badge.hy2 {
+      color: #f9c4df;
+      border-color: rgba(236, 72, 153, 0.3);
+      background: rgba(236, 72, 153, 0.08);
+    }
+
+    .type-badge {
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.32);
+      background: rgba(56, 189, 248, 0.09);
+    }
+
+    .security-badge.tls {
+      color: #86efac;
+      border: 1px solid rgba(52, 211, 153, 0.34);
+      background: rgba(52, 211, 153, 0.1);
+    }
+
+    .security-badge.reality {
+      color: #fde68a;
+      border: 1px solid rgba(251, 191, 36, 0.36);
+      background: rgba(251, 191, 36, 0.1);
+    }
+
+    .config-name {
+      overflow: hidden;
+      min-width: 0;
+      color: #dce4ef;
+      font-size: 0.75rem;
+      font-weight: 620;
+      direction: ltr;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .empty-state {
+      margin: 0;
+      padding: 29px 12px;
+      color: #6f7d91;
+      border: 1px dashed rgba(255, 255, 255, 0.11);
+      border-radius: 13px;
+      font-size: 0.75rem;
+      font-weight: 550;
+      text-align: center;
+    }
+
+    .downloads-panel {
+      margin-top: 18px;
+      animation: reveal 0.55s ease both;
+      animation-delay: 200ms;
+    }
+
+    .downloads-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .download-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface-2);
+      transition: 200ms ease;
+    }
+
+    .download-card:hover,
+    .download-card:focus-visible {
+      border-color: var(--card-accent, var(--line-strong));
+      background: #0e1522;
+      outline: none;
+      transform: translateY(-2px);
+    }
+
+    .download-icon {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      place-items: center;
+      color: var(--card-accent, #fff);
+      border: 1px solid color-mix(in srgb, var(--card-accent, #fff) 35%, transparent);
+      border-radius: 11px;
+      background: color-mix(in srgb, var(--card-accent, #fff) 12%, transparent);
+    }
+
+    .download-info {
+      display: flex;
+      overflow: hidden;
+      min-width: 0;
+      flex: 1 1 auto;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .download-os {
+      overflow: hidden;
+      color: #f1f5f9;
+      font-size: 0.8rem;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .download-app {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 550;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .download-cta {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      place-items: center;
+      color: var(--card-accent, #fff);
+      border: 1px solid color-mix(in srgb, var(--card-accent, #fff) 30%, transparent);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--card-accent, #fff) 10%, transparent);
+    }
+
+    .download-card.android { --card-accent: #34d399; }
+    .download-card.ios { --card-accent: #e2e8f0; }
+    .download-card.windows { --card-accent: #38bdf8; }
+
+    .footer {
+      margin-top: 21px;
+      color: #596679;
+      font-size: 0.66rem;
+      line-height: 1.7;
+      text-align: center;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slide-down {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes warning-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.1); }
+    }
+
+    .notice.low-alert {
+      color: #ffe4e6;
+      border-color: rgba(251, 113, 133, 0.48);
+      background: linear-gradient(90deg, rgba(244, 63, 94, 0.2), rgba(139, 92, 246, 0.08));
+      animation: notice-blink 1.7s ease-in-out infinite;
+    }
+
+    @keyframes notice-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
+    @keyframes fade-swap {
+      from { opacity: 0; transform: translateY(3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 820px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+
+      .usage-ring {
+        width: 215px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .shell {
+        width: min(100% - 22px, 1120px);
+        padding-top: 18px;
+      }
+
+      .site-header {
+        margin-bottom: 18px;
+      }
+
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+      }
+
+      .brand-subtitle {
+        display: none;
+      }
+
+      .panel-body {
+        padding: 17px;
+      }
+
+      .panel-heading {
+        margin-bottom: 15px;
+      }
+
+      .countdown-grid {
+        gap: 6px;
+      }
+
+      .count-box {
+        padding-block: 12px 10px;
+      }
+
+      .configs-list {
+        max-height: 320px;
+        gap: 8px;
+      }
+
+      .config-row {
+        padding: 10px;
+      }
+
+      .protocol-badge {
+        min-width: 46px;
+      }
+
+      .downloads-grid {
+        gap: 8px;
+      }
+
+      .download-card {
+        gap: 8px;
+        padding: 10px 8px;
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .download-icon {
+        width: 34px;
+        height: 34px;
+      }
+
+      .download-os {
+        font-size: 0.68rem;
+      }
+
+      .download-app {
+        font-size: 0.6rem;
+      }
+
+      .download-cta {
+        width: 26px;
+        height: 26px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="particles-js"></div>
+
+  <div class="shell">
+    <header class="site-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M13 2 3.5 13.5h7L9.5 22l11-13h-7L13 2Z" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="brand-copy">
+          <h1 class="brand-name" id="brandName">3x-ui</h1>
+          <p class="brand-subtitle" data-i18n="appTitle">Subscription information</p>
+        </div>
+      </div>
+      <button type="button" class="lang-button" id="langButton">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M2 12h20M12 2a15 15 0 0 1 4 10 15 15 0 0 1-4 10 15 15 0 0 1-4-10 15 15 0 0 1 4-10Z"/>
+        </svg>
+        <span id="langButtonText">فارسی</span>
+      </button>
+    </header>
+
+    <div class="notice hidden" id="notice" role="alert">
+      <div class="notice-body">
+        <span class="notice-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>
+            <path d="M12 9v4M12 17h.01"/>
+          </svg>
+        </span>
+        <p class="notice-text" id="noticeText"></p>
+      </div>
+      <button type="button" class="notice-close" id="noticeClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="m6 6 12 12M18 6 6 18"/>
+        </svg>
+      </button>
+    </div>
+
+    <main class="dashboard">
+      <section class="panel" aria-labelledby="usageTitle">
+        <div class="panel-body">
+          <div class="panel-heading">
+            <span class="section-kicker" id="usageTitle" data-i18n="status">Status</span>
+            <span class="status active" id="statusBadge">Active</span>
+          </div>
+
+          <div class="usage-ring">
+            <svg viewBox="0 0 200 200" aria-label="Traffic usage chart" role="img">
+              <circle class="ring-track" cx="100" cy="100" r="78" pathLength="100"/>
+              <g transform="rotate(-90 100 100)">
+                <circle class="ring-segment download" data-ring-key="download" cx="100" cy="100" r="78" pathLength="100"/>
+                <circle class="ring-segment upload" data-ring-key="upload" cx="100" cy="100" r="78" pathLength="100"/>
+                <circle class="ring-segment remained" data-ring-key="remained" cx="100" cy="100" r="78" pathLength="100"/>
+              </g>
+            </svg>
+            <div class="ring-center">
+              <span class="ring-label" id="ringLabel">Total</span>
+              <strong class="ring-value" id="ringValue">0 B</strong>
+            </div>
+          </div>
+
+          <div class="legend" id="legend">
+            <div class="legend-row" data-legend-key="_total" tabindex="0">
+              <div class="legend-row-top">
+                <span class="legend-key" data-i18n="total">Total</span>
+                <strong class="legend-value" id="totalValue">0 B</strong>
+              </div>
+            </div>
+            <div class="legend-row" data-legend-key="download" tabindex="0">
+              <div class="legend-row-top">
+                <span class="legend-key"><i class="legend-dot download"></i><span data-i18n="download">Download</span></span>
+                <strong class="legend-value" id="downloadValue">0 B</strong>
+              </div>
+              <div class="legend-progress" id="downloadProgress">
+                <div class="legend-progress-track" aria-hidden="true">
+                  <div class="legend-progress-fill download" id="downloadProgressFill"></div>
+                </div>
+                <div class="legend-progress-meta" id="downloadProgressMeta">
+                  <span id="downloadProgressPercent">0%</span>
+                </div>
+              </div>
+            </div>
+            <div class="legend-row" data-legend-key="upload" tabindex="0">
+              <div class="legend-row-top">
+                <span class="legend-key"><i class="legend-dot upload"></i><span data-i18n="upload">Upload</span></span>
+                <strong class="legend-value" id="uploadValue">0 B</strong>
+              </div>
+              <div class="legend-progress" id="uploadProgress">
+                <div class="legend-progress-track" aria-hidden="true">
+                  <div class="legend-progress-fill upload" id="uploadProgressFill"></div>
+                </div>
+                <div class="legend-progress-meta" id="uploadProgressMeta">
+                  <span id="uploadProgressPercent">0%</span>
+                </div>
+              </div>
+            </div>
+            <div class="legend-row" data-legend-key="remained" tabindex="0">
+              <div class="legend-row-top">
+                <span class="legend-key"><i class="legend-dot remained"></i><span data-i18n="remained">Remaining</span></span>
+                <strong class="legend-value" id="remainedValue">0 B</strong>
+              </div>
+              <div class="legend-progress" id="remainedProgress">
+                <div class="legend-progress-track" aria-hidden="true">
+                  <div class="legend-progress-fill remained" id="remainedProgressFill"></div>
+                </div>
+                <div class="legend-progress-meta" id="remainedProgressMeta">
+                  <span id="remainedProgressPercent">0%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="last-online">
+            <span data-i18n="lastOnline">Last online</span>
+            <strong id="lastOnlineValue">Never</strong>
+          </div>
+        </div>
+      </section>
+
+      <div class="right-column">
+        <section class="panel countdown-panel" aria-labelledby="countdownTitle">
+          <div class="panel-body">
+            <div class="panel-heading">
+              <h2 class="panel-title" id="countdownTitle" data-i18n="timeRemaining">Time remaining</h2>
+              <span class="expiry-date" id="expiryDate"></span>
+            </div>
+            <div class="countdown-grid">
+              <div class="count-box"><strong class="count-value" id="daysValue">00</strong><span class="count-label" data-i18n="days">Days</span></div>
+              <div class="count-box"><strong class="count-value" id="hoursValue">00</strong><span class="count-label" data-i18n="hours">Hours</span></div>
+              <div class="count-box"><strong class="count-value" id="minutesValue">00</strong><span class="count-label" data-i18n="minutes">Minutes</span></div>
+              <div class="count-box"><strong class="count-value" id="secondsValue">00</strong><span class="count-label" data-i18n="seconds">Seconds</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="subLinkTitle">
+          <div class="panel-body">
+            <div class="panel-heading">
+              <h2 class="panel-title" id="subLinkTitle" data-i18n="subscriptionLink">Subscription link</h2>
+            </div>
+            <div class="url-box">
+              <svg class="url-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/>
+                <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>
+              </svg>
+              <span class="url-text" id="subUrlText"></span>
+              <button type="button" class="icon-button" id="copySubButton" data-i18n-title="copy" title="Copy" aria-label="Copy subscription link">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="9" y="9" width="13" height="13" rx="2"/>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                </svg>
+              </button>
+            </div>
+            <div class="link-actions">
+              <a class="text-link hidden" id="jsonLink" href="#" target="_blank" rel="noopener noreferrer">JSON</a>
+              <a class="text-link hidden" id="clashLink" href="#" target="_blank" rel="noopener noreferrer">Clash</a>
+              <a class="text-link hidden" id="supportLink" href="#" target="_blank" rel="noopener noreferrer" data-i18n="support">Support</a>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="configsTitle">
+          <div class="panel-body">
+            <div class="panel-heading">
+              <h2 class="panel-title" id="configsTitle" data-i18n="configurations">Configurations</h2>
+              <button type="button" class="copy-all" id="copyAllButton">
+                <span id="copyAllIcon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 3H5a2 2 0 0 0-2 2v13"/>
+                    <path d="M12 7h9v14H8V11a4 4 0 0 1 4-4Z"/>
+                  </svg>
+                </span>
+                <span id="copyAllText" data-i18n="copyAll">Copy all</span>
+              </button>
+            </div>
+            <div class="configs-scroll-wrap">
+              <div class="configs-list" id="configsList"></div>
+              <div class="scroll-fade scroll-fade-top" id="scrollFadeTop" aria-hidden="true"></div>
+              <div class="scroll-fade scroll-fade-bottom" id="scrollFadeBottom" aria-hidden="true"></div>
+              <div class="custom-scrollbar-track" id="customScrollTrack" aria-hidden="true">
+                <div class="custom-scrollbar-thumb" id="customScrollThumb"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <section class="panel downloads-panel" aria-labelledby="downloadsTitle">
+      <div class="panel-body">
+        <div class="panel-heading">
+          <h2 class="panel-title" id="downloadsTitle" data-i18n="downloadApps">Download apps</h2>
+        </div>
+        <div class="downloads-grid">
+          <a class="download-card android" href="https://github.com/2dust/v2rayNG/releases/download/2.2.5/v2rayNG_2.2.5_universal.apk" target="_blank" rel="noopener noreferrer">
+            <span class="download-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="6" y="8" width="12" height="10" rx="2"/>
+                <line x1="6" y1="11" x2="18" y2="11"/>
+                <line x1="9" y1="4.5" x2="10.2" y2="6.5"/>
+                <line x1="15" y1="4.5" x2="13.8" y2="6.5"/>
+                <line x1="4.5" y1="10" x2="4.5" y2="16"/>
+                <line x1="19.5" y1="10" x2="19.5" y2="16"/>
+                <line x1="9" y1="18" x2="9" y2="20.5"/>
+                <line x1="15" y1="18" x2="15" y2="20.5"/>
+              </svg>
+            </span>
+            <span class="download-info">
+              <strong class="download-os" data-i18n="osAndroid">Android</strong>
+              <span class="download-app">V2rayNG</span>
+            </span>
+            <span class="download-cta" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 4v12"/>
+                <path d="m6 12 6 6 6-6"/>
+                <path d="M5 20h14"/>
+              </svg>
+            </span>
+          </a>
+
+          <a class="download-card ios" href="https://apps.apple.com/us/app/streisand/id6450534064" target="_blank" rel="noopener noreferrer">
+            <span class="download-icon" aria-hidden="true">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16.365 1.43c0 1.14-.462 2.24-1.15 3.03-.78.9-2.05 1.6-3.1 1.51-.14-1.1.42-2.26 1.14-3.02.79-.85 2.17-1.5 3.11-1.52ZM20.5 17.1c-.55 1.27-.82 1.84-1.53 2.97-1 1.57-2.4 3.53-4.15 3.55-1.55.02-1.95-1.02-4.05-1.01-2.1.01-2.54 1.03-4.09 1.01-1.75-.02-3.08-1.79-4.08-3.36-2.8-4.36-3.1-9.48-1.37-12.2 1.23-1.93 3.17-3.06 5-3.06 1.86 0 3.03 1.03 4.57 1.03 1.49 0 2.4-1.03 4.57-1.03 1.63 0 3.36.89 4.58 2.42-4.03 2.21-3.38 7.98.55 9.68Z"/>
+              </svg>
+            </span>
+            <span class="download-info">
+              <strong class="download-os" data-i18n="osIOS">iOS</strong>
+              <span class="download-app">Streisand</span>
+            </span>
+            <span class="download-cta" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 17 17 7"/>
+                <path d="M9 7h8v8"/>
+              </svg>
+            </span>
+          </a>
+
+          <a class="download-card windows" href="https://github.com/2dust/v2rayN/releases/download/7.23.4/v2rayN-windows-64.zip" target="_blank" rel="noopener noreferrer">
+            <span class="download-icon" aria-hidden="true">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3 5.5 10.4 4.4v7.1H3V5.5Zm0 13 7.4 1v-7H3v6Zm8.4-9v7.2L21 20V12.5h-9.6Zm0-1.1L21 4v7.4h-9.6Z"/>
+              </svg>
+            </span>
+            <span class="download-info">
+              <strong class="download-os" data-i18n="osWindows">Windows</strong>
+              <span class="download-app">V2rayN</span>
+            </span>
+            <span class="download-cta" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 4v12"/>
+                <path d="m6 12 6 6 6-6"/>
+                <path d="M5 20h14"/>
+              </svg>
+            </span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer" data-i18n="footerNote">Keep your subscription link private and do not share it with others.</footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+  <script>
+    if (window.particlesJS) {
+      particlesJS("particles-js", {
+        "particles": {
+          "number": { "value": 80 },
+          "color": { "value": "#ffffff" },
+          "shape": { "type": "circle" },
+          "opacity": { "value": 0.1 },
+          "size": { "value": 3 },
+          "line_linked": {
+            "enable": true,
+            "distance": 150,
+            "color": "#ffffff",
+            "opacity": 0.1,
+            "width": 1
+          },
+          "move": {
+            "enable": true,
+            "speed": 1,
+            "direction": "none",
+            "random": true,
+            "out_mode": "out"
+          }
+        },
+        "interactivity": {
+          "events": {
+            "onhover": { "enable": false },
+            "onclick": { "enable": false }
+          }
+        },
+        "retina_detect": true
+      });
+    }
+  </script>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var I18N = {
+        en: {
+          languageName: "English",
+          otherLanguage: "فارسی",
+          appTitle: "Subscription information",
+          status: "Status",
+          active: "Active",
+          expired: "Expired",
+          disabled: "Disabled",
+          timeRemaining: "Time remaining",
+          days: "Days",
+          hours: "Hours",
+          minutes: "Minutes",
+          seconds: "Seconds",
+          unlimitedTime: "Unlimited time",
+          expiresOn: "Expires on {date}",
+          total: "Total",
+          download: "Download",
+          upload: "Upload",
+          remained: "Remaining",
+          unlimitedTraffic: "Unlimited",
+          lastOnline: "Last online",
+          never: "Never",
+          justNow: "Just now",
+          minutesAgo: "{count} min ago",
+          hoursAgo: "{count}h ago",
+          daysAgo: "{count}d ago",
+          subscriptionLink: "Subscription link",
+          support: "Support",
+          configurations: "Configurations",
+          copy: "Copy",
+          copied: "Copied",
+          copyAll: "Copy all",
+          copiedAll: "Copied all",
+          noConfigurations: "No configurations are available.",
+          downloadApps: "Download apps",
+          osAndroid: "Android",
+          osIOS: "iOS",
+          osWindows: "Windows",
+          templateNotRendered: "This subscription link is invalid or has expired. Please check the link or contact support.",
+          warnDisabled: "This subscription is disabled. Contact support if you believe this is a mistake.",
+          warnExpiredBoth: "The service has expired and its traffic is depleted. Renew it to reconnect.",
+          warnExpiredTime: "The service has expired. Renew it to reconnect.",
+          warnExpiredTraffic: "The traffic allowance is depleted. Renew it to reconnect.",
+          warnLowBoth: "Both time and traffic are running low. Consider renewing soon.",
+          warnLowTime: "The service will expire soon. Consider renewing to avoid interruption.",
+          warnLowTraffic: "The remaining traffic is low. Consider renewing to avoid interruption.",
+          footerNote: "Keep your subscription link private and do not share it with others."
+        },
+        fa: {
+          languageName: "فارسی",
+          otherLanguage: "English",
+          appTitle: "اطلاعات اشتراک",
+          status: "وضعیت",
+          active: "فعال",
+          expired: "منقضی شده",
+          disabled: "غیرفعال",
+          timeRemaining: "زمان باقی‌مانده",
+          days: "روز",
+          hours: "ساعت",
+          minutes: "دقیقه",
+          seconds: "ثانیه",
+          unlimitedTime: "زمان نامحدود",
+          expiresOn: "تاریخ انقضا: {date}",
+          total: "حجم کل",
+          download: "دانلود",
+          upload: "آپلود",
+          remained: "باقی‌مانده",
+          unlimitedTraffic: "نامحدود",
+          lastOnline: "آخرین اتصال",
+          never: "هرگز",
+          justNow: "همین حالا",
+          minutesAgo: "{count} دقیقه پیش",
+          hoursAgo: "{count} ساعت پیش",
+          daysAgo: "{count} روز پیش",
+          subscriptionLink: "لینک اشتراک",
+          support: "پشتیبانی",
+          configurations: "کانفیگ‌ها",
+          copy: "کپی",
+          copied: "کپی شد",
+          copyAll: "کپی همه",
+          copiedAll: "همه کپی شد",
+          noConfigurations: "هیچ کانفیگی در دسترس نیست.",
+          downloadApps: "دانلود اپلیکیشن",
+          osAndroid: "اندروید",
+          osIOS: "iOS",
+          osWindows: "ویندوز",
+          templateNotRendered: "این لینک اشتراک نامعتبر است یا منقضی شده. لطفاً لینک را بررسی کنید یا با پشتیبانی تماس بگیرید.",
+          warnDisabled: "این اشتراک غیرفعال است. اگر فکر می‌کنید اشتباهی رخ داده، با پشتیبانی تماس بگیرید.",
+          warnExpiredBoth: "زمان و حجم سرویس به پایان رسیده است. برای اتصال مجدد آن را تمدید کنید.",
+          warnExpiredTime: "زمان سرویس به پایان رسیده است. برای اتصال مجدد آن را تمدید کنید.",
+          warnExpiredTraffic: "حجم سرویس به پایان رسیده است. برای اتصال مجدد آن را تمدید کنید.",
+          warnLowBoth: "زمان و حجم باقی‌مانده سرویس کم است. بهتر است به‌زودی آن را تمدید کنید.",
+          warnLowTime: "زمان سرویس به‌زودی تمام می‌شود. برای جلوگیری از قطعی آن را تمدید کنید.",
+          warnLowTraffic: "حجم باقی‌مانده سرویس کم است. برای جلوگیری از قطعی آن را تمدید کنید.",
+          footerNote: "لینک اشتراک خود را محرمانه نگه دارید و آن را با دیگران به اشتراک نگذارید."
+        }
+      };
+
+      var lang = window.__initialLang === "fa" ? "fa" : "en";
+      var countdownTimer = null;
+      var noticeDismissed = false;
+
+      function numberFrom(value) {
+        var parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      // Fetches the matching WireGuard config (by ?sub=<id>) from the panel's
+      // backend API and returns the same "data" shape this template expects.
+      function emptyData() {
+        return {
+          rendered: false,
+          sId: "",
+          enabled: false,
+          download: "0 B",
+          upload: "0 B",
+          total: "0 B",
+          used: "0 B",
+          remained: "0 B",
+          expire: 0,
+          lastOnline: 0,
+          downloadByte: 0,
+          uploadByte: 0,
+          totalByte: 0,
+          subUrl: "",
+          subJsonUrl: "",
+          subClashUrl: "",
+          subTitle: "PUG62",
+          subSupportUrl: "",
+          datepicker: "gregorian",
+          links: [],
+          configName: ""
+        };
+      }
+
+      function fetchAppData() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var subId = urlParams.get("sub");
+        if (!subId) return Promise.resolve(emptyData());
+
+        return fetch("/api/sub/" + encodeURIComponent(subId))
+          .then(function (res) { return res.json(); })
+          .then(function (json) {
+            if (!json || !json.found) return emptyData();
+            return {
+              rendered: true,
+              sId: json.sId || "",
+              enabled: !!json.enabled,
+              download: json.download || "0 B",
+              upload: json.upload || "0 B",
+              total: json.total || "0 B",
+              used: json.used || "0 B",
+              remained: json.remained || "0 B",
+              expire: numberFrom(json.expire),
+              lastOnline: numberFrom(json.lastOnline),
+              downloadByte: numberFrom(json.downloadByte),
+              uploadByte: numberFrom(json.uploadByte),
+              totalByte: numberFrom(json.totalByte),
+              subUrl: json.subUrl || "",
+              subJsonUrl: json.subJsonUrl || "",
+              subClashUrl: json.subClashUrl || "",
+              subTitle: json.subTitle || "PUG62",
+              subSupportUrl: json.subSupportUrl || "",
+              datepicker: json.datepicker || "gregorian",
+              links: Array.isArray(json.links) ? json.links : [],
+              configName: json.configName || ""
+            };
+          })
+          .catch(function () { return emptyData(); });
+      }
+
+      var data = emptyData();
+      var totalByte, downloadByte, uploadByte, trafficUnlimited, remainedByte,
+        timeUnlimited, expireMs, usedRatio, highUsage, remainedRatio, lowRemainFocus;
+      var LOW_TRAFFIC_BYTES = 2 * 1024 * 1024 * 1024;
+
+      function recomputeDerived() {
+        totalByte = Math.max(0, data.totalByte);
+        downloadByte = Math.max(0, data.downloadByte);
+        uploadByte = Math.max(0, data.uploadByte);
+        trafficUnlimited = totalByte <= 0 && data.rendered;
+        remainedByte = trafficUnlimited ? 0 : Math.max(totalByte - downloadByte - uploadByte, 0);
+        timeUnlimited = data.expire <= 0;
+        expireMs = timeUnlimited ? 0 : data.expire * 1000;
+        usedRatio = (!trafficUnlimited && totalByte > 0) ? (downloadByte + uploadByte) / totalByte : 0;
+        highUsage = !trafficUnlimited && totalByte > 0 && usedRatio > 0.7;
+        remainedRatio = (!trafficUnlimited && totalByte > 0) ? (remainedByte / totalByte) : 1;
+        lowRemainFocus = !trafficUnlimited && totalByte > 0 && remainedRatio < 0.3;
+      }
+
+      recomputeDerived();
+
+      function defaultHighlightKey() {
+        return lowRemainFocus ? "remained" : "";
+      }
+
+      function text(key) {
+        return I18N[lang][key] || key;
+      }
+
+      function pad2(number) {
+        return String(number).padStart(2, "0");
+      }
+
+      function animateText(element) {
+        element.classList.remove("fade-swap");
+        void element.offsetWidth;
+        element.classList.add("fade-swap");
+      }
+
+      function formatRelative(milliseconds) {
+        if (!milliseconds) return text("never");
+        var difference = Math.max(0, Date.now() - milliseconds);
+        if (difference < 60000) return text("justNow");
+        var minutes = Math.floor(difference / 60000);
+        if (minutes < 60) return text("minutesAgo").replace("{count}", minutes);
+        var hours = Math.floor(minutes / 60);
+        if (hours < 24) return text("hoursAgo").replace("{count}", hours);
+        return text("daysAgo").replace("{count}", Math.floor(hours / 24));
+      }
+
+      function toJalali(gy, gm, gd) {
+        var monthDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+        var jy = gy <= 1600 ? 0 : 979;
+        gy -= gy <= 1600 ? 621 : 1600;
+        var adjustedYear = gm > 2 ? gy + 1 : gy;
+        var days = (365 * gy) + Math.floor((adjustedYear + 3) / 4)
+          - Math.floor((adjustedYear + 99) / 100)
+          + Math.floor((adjustedYear + 399) / 400)
+          - 80 + gd + monthDays[gm - 1];
+        jy += 33 * Math.floor(days / 12053);
+        days %= 12053;
+        jy += 4 * Math.floor(days / 1461);
+        days %= 1461;
+        jy += Math.floor((days - 1) / 365);
+        if (days > 365) days = (days - 1) % 365;
+        var jm = days < 186 ? 1 + Math.floor(days / 31) : 7 + Math.floor((days - 186) / 30);
+        var jd = 1 + (days < 186 ? days % 31 : (days - 186) % 30);
+        return [jy, jm, jd];
+      }
+
+      function formatExpiryDate(milliseconds) {
+        var date = new Date(milliseconds);
+        if (data.datepicker === "jalali") {
+          var jalali = toJalali(date.getFullYear(), date.getMonth() + 1, date.getDate());
+          return jalali[0] + "/" + pad2(jalali[1]) + "/" + pad2(jalali[2]);
+        }
+        return date.getFullYear() + "/" + pad2(date.getMonth() + 1) + "/" + pad2(date.getDate());
+      }
+
+      function setRingCenter(key) {
+        var details = {
+          _total: {
+            label: text("total"),
+            value: trafficUnlimited ? text("unlimitedTraffic") : data.total,
+            color: "#ffffff"
+          },
+          download: { label: text("download"), value: data.download, color: "#3b82f6" },
+          upload: { label: text("upload"), value: data.upload, color: "#a78bfa" },
+          remained: {
+            label: text("remained"),
+            value: trafficUnlimited ? text("unlimitedTraffic") : data.remained,
+            color: highUsage ? "#fb7185" : "#94a3b8"
+          }
+        };
+        var selected = details[key] || details.remained;
+        var label = document.getElementById("ringLabel");
+        var value = document.getElementById("ringValue");
+        label.textContent = selected.label;
+        value.textContent = selected.value;
+        value.style.color = selected.color;
+        animateText(label);
+        animateText(value);
+      }
+
+      function applyHighUsageState() {
+        var remainedSegment = document.querySelector('[data-ring-key="remained"]');
+        var remainedDot = document.querySelector(".legend-dot.remained");
+        var remainedRow = document.querySelector('[data-legend-key="remained"]');
+        if (remainedSegment) remainedSegment.classList.toggle("high-usage", highUsage);
+        if (remainedDot) remainedDot.classList.toggle("high-usage", highUsage);
+        if (remainedRow) remainedRow.classList.toggle("high-usage", highUsage);
+      }
+
+      function buildRing() {
+        var segments = [
+          { key: "download", value: downloadByte },
+          { key: "upload", value: uploadByte },
+          { key: "remained", value: remainedByte }
+        ];
+        var denominator = trafficUnlimited ? downloadByte + uploadByte : totalByte;
+        var visibleSegments = segments.filter(function (segment) {
+          return segment.value > 0 && !(trafficUnlimited && segment.key === "remained");
+        });
+        var radius = 78;
+        var circumference = 2 * Math.PI * radius;
+        var gapUnits = visibleSegments.length > 1 ? (6 / circumference) * 100 : 0;
+        var cursor = 0;
+
+        segments.forEach(function (segment) {
+          var element = document.querySelector('[data-ring-key="' + segment.key + '"]');
+          if (!denominator || !segment.value || (trafficUnlimited && segment.key === "remained")) {
+            element.setAttribute("stroke-dasharray", "0 100");
+            element.setAttribute("stroke-dashoffset", "0");
+            return;
+          }
+          var share = Math.min(100, (segment.value / denominator) * 100);
+          var visibleLength = Math.max(0.25, share - gapUnits);
+          if (share <= gapUnits + 0.25) {
+            visibleLength = share * 0.78;
+          }
+          element.setAttribute("stroke-dasharray", visibleLength + " " + (100 - visibleLength));
+          element.setAttribute("stroke-dashoffset", String(-cursor));
+          cursor += share;
+        });
+
+        applyHighUsageState();
+      }
+
+      function highlightRing(key) {
+        document.querySelectorAll("[data-ring-key]").forEach(function (element) {
+          var selected = element.getAttribute("data-ring-key") === key;
+          element.classList.toggle("active", selected);
+          element.classList.toggle("dimmed", Boolean(key) && !selected);
+        });
+        document.querySelectorAll("[data-legend-key]").forEach(function (element) {
+          var rowKey = element.getAttribute("data-legend-key");
+          var selected = rowKey === key || (rowKey === "_total" && key === "_total");
+          element.classList.toggle("active", selected);
+          element.classList.toggle("dimmed", Boolean(key) && !selected && key !== "_total");
+        });
+        setRingCenter(key || "remained");
+      }
+
+      function renderUsage() {
+        document.getElementById("totalValue").textContent = trafficUnlimited ? text("unlimitedTraffic") : data.total;
+        document.getElementById("downloadValue").textContent = data.download;
+        document.getElementById("uploadValue").textContent = data.upload;
+        document.getElementById("remainedValue").textContent = trafficUnlimited ? text("unlimitedTraffic") : data.remained;
+        document.getElementById("lastOnlineValue").textContent = formatRelative(data.lastOnline);
+        applyHighUsageState();
+        renderLegendProgress();
+        setRingCenter("remained");
+      }
+
+      function setLegendProgress(prefix, percent, extraClass) {
+        var wrapper = document.getElementById(prefix + "Progress");
+        var fill = document.getElementById(prefix + "ProgressFill");
+        var meta = document.getElementById(prefix + "ProgressMeta");
+        var percentEl = document.getElementById(prefix + "ProgressPercent");
+        if (!wrapper || !fill || !meta || !percentEl) return;
+
+        if (trafficUnlimited) {
+          wrapper.classList.add("hidden-progress");
+          return;
+        }
+        wrapper.classList.remove("hidden-progress");
+
+        var clampedPercent = Math.max(0, Math.min(100, percent));
+        fill.style.width = clampedPercent + "%";
+        percentEl.textContent = Math.round(clampedPercent) + "%";
+        fill.classList.toggle("high-alert", Boolean(extraClass));
+        meta.classList.toggle("high-alert", Boolean(extraClass));
+      }
+
+      function renderLegendProgress() {
+        if (!totalByte) {
+          setLegendProgress("download", 0, false);
+          setLegendProgress("upload", 0, false);
+          setLegendProgress("remained", 0, false);
+          return;
+        }
+
+        var downloadPercent = (downloadByte / totalByte) * 100;
+        var uploadPercent = (uploadByte / totalByte) * 100;
+        var remainedPercent = (remainedByte / totalByte) * 100;
+        var remainedHighAlert = !trafficUnlimited && remainedPercent < 30;
+
+        setLegendProgress("download", downloadPercent, false);
+        setLegendProgress("upload", uploadPercent, false);
+        setLegendProgress("remained", remainedPercent, remainedHighAlert);
+      }
+
+      function serviceState() {
+        var timeExpired = !timeUnlimited && expireMs <= Date.now();
+        var trafficExpired = !trafficUnlimited && totalByte > 0 && remainedByte <= 0;
+        if (!data.enabled || !data.rendered) return "disabled";
+        if (timeExpired || trafficExpired) return "expired";
+        return "active";
+      }
+
+      function renderStatus() {
+        var state = serviceState();
+        var badge = document.getElementById("statusBadge");
+        badge.className = "status " + state;
+        badge.textContent = text(state);
+      }
+
+      function warningKey() {
+        if (!data.rendered) return "templateNotRendered";
+        if (!data.enabled) return "warnDisabled";
+
+        var now = Date.now();
+        var expiredTime = !timeUnlimited && expireMs <= now;
+        var expiredTraffic = !trafficUnlimited && totalByte > 0 && remainedByte <= 0;
+        if (expiredTime && expiredTraffic) return "warnExpiredBoth";
+        if (expiredTime) return "warnExpiredTime";
+        if (expiredTraffic) return "warnExpiredTraffic";
+
+        var lowTime = !timeUnlimited && expireMs - now < 2 * 86400000;
+        var lowTraffic = !trafficUnlimited && totalByte > 0 && remainedByte < LOW_TRAFFIC_BYTES;
+        if (lowTime && lowTraffic) return "warnLowBoth";
+        if (lowTime) return "warnLowTime";
+        if (lowTraffic) return "warnLowTraffic";
+        return "";
+      }
+
+      function renderNotice() {
+        var notice = document.getElementById("notice");
+        var key = warningKey();
+        if (!key || noticeDismissed) {
+          notice.classList.add("hidden");
+          return;
+        }
+        var isDanger = key === "templateNotRendered" || key === "warnDisabled" || key.indexOf("warnExpired") === 0;
+        var isLowAlert = key === "warnLowBoth" || key === "warnLowTime" || key === "warnLowTraffic";
+        notice.classList.toggle("danger", isDanger);
+        notice.classList.toggle("low-alert", isLowAlert);
+        document.getElementById("noticeText").textContent = text(key);
+        notice.classList.remove("hidden");
+      }
+
+      function renderCountdown() {
+        var dateElement = document.getElementById("expiryDate");
+        var fields = ["daysValue", "hoursValue", "minutesValue", "secondsValue"];
+        if (!data.rendered) {
+          fields.forEach(function (id) { document.getElementById(id).textContent = "--"; });
+          dateElement.textContent = "";
+          return;
+        }
+        if (timeUnlimited) {
+          fields.forEach(function (id) { document.getElementById(id).textContent = "--"; });
+          dateElement.textContent = text("unlimitedTime");
+          return;
+        }
+
+        var difference = Math.max(0, expireMs - Date.now());
+        var days = Math.floor(difference / 86400000);
+        var hours = Math.floor((difference % 86400000) / 3600000);
+        var minutes = Math.floor((difference % 3600000) / 60000);
+        var seconds = Math.floor((difference % 60000) / 1000);
+        document.getElementById("daysValue").textContent = String(days).padStart(2, "0");
+        document.getElementById("hoursValue").textContent = pad2(hours);
+        document.getElementById("minutesValue").textContent = pad2(minutes);
+        document.getElementById("secondsValue").textContent = pad2(seconds);
+        dateElement.textContent = text("expiresOn").replace("{date}", formatExpiryDate(expireMs));
+        renderStatus();
+      }
+
+      function showOptionalLink(id, url) {
+        var link = document.getElementById(id);
+        if (url) {
+          link.href = url;
+          link.classList.remove("hidden");
+        } else {
+          link.removeAttribute("href");
+          link.classList.add("hidden");
+        }
+      }
+
+      function renderSubscriptionLinks() {
+        document.getElementById("subUrlText").textContent = data.subUrl || "-";
+        document.getElementById("copySubButton").disabled = !data.subUrl;
+        showOptionalLink("jsonLink", data.subJsonUrl);
+        showOptionalLink("clashLink", data.subClashUrl);
+        showOptionalLink("supportLink", data.subSupportUrl);
+      }
+
+      function decodeBase64Utf8(value) {
+        try {
+          var normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+          while (normalized.length % 4) normalized += "=";
+          var bytes = Uint8Array.from(atob(normalized), function (character) { return character.charCodeAt(0); });
+          if (window.TextDecoder) return new TextDecoder().decode(bytes);
+          var encoded = Array.prototype.map.call(bytes, function (byte) {
+            return "%" + byte.toString(16).padStart(2, "0");
+          }).join("");
+          return decodeURIComponent(encoded);
+        } catch (error) {
+          return "";
+        }
+      }
+
+      function protocolOf(link) {
+        if (String(link).replace(/^\s+/, "").indexOf("[Interface]") === 0) return "wg";
+        var match = String(link).match(/^([a-zA-Z0-9+.-]+):\/\//);
+        return match ? match[1].toLowerCase() : "config";
+      }
+
+      function protocolLabel(protocol) {
+        if (protocol === "ss") return "Shadowsocks";
+        if (protocol === "wg") return "WireGuard";
+        return protocol.toUpperCase();
+      }
+
+      function queryParamsOf(link) {
+        var params = {};
+        var value = String(link);
+        var queryIndex = value.indexOf("?");
+        if (queryIndex === -1) return params;
+        var hashIndex = value.indexOf("#", queryIndex);
+        var query = value.slice(queryIndex + 1, hashIndex === -1 ? value.length : hashIndex);
+        query.split("&").forEach(function (pair) {
+          if (!pair) return;
+          var equalsIndex = pair.indexOf("=");
+          var rawKey = equalsIndex === -1 ? pair : pair.slice(0, equalsIndex);
+          var rawValue = equalsIndex === -1 ? "" : pair.slice(equalsIndex + 1);
+          var key;
+          try { key = decodeURIComponent(rawKey).toLowerCase(); } catch (error) { key = rawKey.toLowerCase(); }
+          var val;
+          try { val = decodeURIComponent(rawValue); } catch (error) { val = rawValue; }
+          params[key] = val;
+        });
+        return params;
+      }
+
+      function configName(link, index) {
+        var protocol = protocolOf(link);
+        if (protocol === "wg") {
+          return data.configName || (protocolLabel(protocol) + " " + (index + 1));
+        }
+        if (protocol === "vmess") {
+          try {
+            var vmess = JSON.parse(decodeBase64Utf8(link.slice("vmess://".length)));
+            if (vmess.ps) return String(vmess.ps);
+          } catch (error) {
+          }
+        }
+
+        var hashIndex = link.lastIndexOf("#");
+        if (hashIndex !== -1 && hashIndex < link.length - 1) {
+          try {
+            return decodeURIComponent(link.slice(hashIndex + 1).replace(/\+/g, "%20"));
+          } catch (error) {
+            return link.slice(hashIndex + 1);
+          }
+        }
+        return protocol.toUpperCase() + " " + (index + 1);
+      }
+
+      function copyIcon() {
+        return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      }
+
+      function checkIcon(size) {
+        var iconSize = size || 15;
+        return '<svg width="' + iconSize + '" height="' + iconSize + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+      }
+
+      function updateScrollFades() {
+        var list = document.getElementById("configsList");
+        var top = document.getElementById("scrollFadeTop");
+        var bottom = document.getElementById("scrollFadeBottom");
+        var wrap = document.querySelector(".configs-scroll-wrap");
+        var track = document.getElementById("customScrollTrack");
+        var thumb = document.getElementById("customScrollThumb");
+        var hint = document.getElementById("scrollHint");
+        if (!list || !top || !bottom) return;
+
+        var scrollable = list.scrollHeight > list.clientHeight + 1;
+        var atTop = list.scrollTop <= 4;
+        var atBottom = list.scrollTop >= list.scrollHeight - list.clientHeight - 4;
+
+        top.classList.toggle("visible", scrollable && !atTop);
+        bottom.classList.toggle("visible", scrollable && !atBottom);
+
+        if (wrap) wrap.classList.toggle("is-scrollable", scrollable);
+
+        if (track && thumb) {
+          if (scrollable) {
+            var trackHeight = track.clientHeight;
+            var thumbHeight = Math.max(24, (list.clientHeight / list.scrollHeight) * trackHeight);
+            var maxThumbTop = Math.max(0, trackHeight - thumbHeight);
+            var scrollableDistance = list.scrollHeight - list.clientHeight;
+            var scrollRatio = scrollableDistance > 0 ? (list.scrollTop / scrollableDistance) : 0;
+            var thumbTop = maxThumbTop * scrollRatio;
+            thumb.style.height = thumbHeight + "px";
+            thumb.style.top = thumbTop + "px";
+          } else {
+            thumb.style.height = "100%";
+            thumb.style.top = "0";
+          }
+        }
+
+        if (hint) {
+          hint.classList.toggle("visible", scrollable && !atBottom);
+        }
+      }
+
+      function renderConfigs() {
+        var list = document.getElementById("configsList");
+        var copyAllButton = document.getElementById("copyAllButton");
+        list.replaceChildren();
+        copyAllButton.disabled = data.links.length === 0;
+
+        if (!data.links.length) {
+          var empty = document.createElement("p");
+          empty.className = "empty-state";
+          empty.textContent = text("noConfigurations");
+          list.appendChild(empty);
+          updateScrollFades();
+          return;
+        }
+
+        data.links.forEach(function (link, index) {
+          var protocol = protocolOf(link);
+          var params = queryParamsOf(link);
+          var row = document.createElement("div");
+          row.className = "config-row";
+
+          var detail = document.createElement("div");
+          detail.className = "config-copy";
+
+          var badgeGroup = document.createElement("span");
+          badgeGroup.className = "badge-group";
+
+          var badge = document.createElement("span");
+          badge.className = "protocol-badge " + protocol;
+          badge.textContent = protocolLabel(protocol);
+          badgeGroup.appendChild(badge);
+
+          if (params.type) {
+            var typeBadge = document.createElement("span");
+            typeBadge.className = "type-badge";
+            typeBadge.textContent = params.type.toUpperCase();
+            badgeGroup.appendChild(typeBadge);
+          }
+
+          var security = (params.security || "").toLowerCase();
+          if (security === "tls" || security === "reality") {
+            var securityBadge = document.createElement("span");
+            securityBadge.className = "security-badge " + security;
+            securityBadge.textContent = security.toUpperCase();
+            badgeGroup.appendChild(securityBadge);
+          }
+
+          var name = document.createElement("span");
+          name.className = "config-name";
+          name.textContent = configName(link, index);
+          name.title = name.textContent;
+          detail.appendChild(badgeGroup);
+          detail.appendChild(name);
+
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "icon-button";
+          button.setAttribute("aria-label", text("copy") + " " + name.textContent);
+          button.title = text("copy");
+          button.innerHTML = copyIcon();
+          button.addEventListener("click", function () {
+            copyText(link).then(function (success) {
+              if (success) flashCopyButton(button);
+            });
+          });
+
+          row.appendChild(detail);
+          row.appendChild(button);
+          list.appendChild(row);
+        });
+
+        updateScrollFades();
+      }
+
+      function copyText(value) {
+        if (!value) return Promise.resolve(false);
+        if (navigator.clipboard && window.isSecureContext) {
+          return navigator.clipboard.writeText(value).then(function () { return true; }).catch(function () {
+            return legacyCopy(value);
+          });
+        }
+        return Promise.resolve(legacyCopy(value));
+      }
+
+      function legacyCopy(value) {
+        var textarea = document.createElement("textarea");
+        textarea.value = value;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        textarea.style.pointerEvents = "none";
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+        var copied = false;
+        try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
+        textarea.remove();
+        return copied;
+      }
+
+      function flashCopyButton(button) {
+        var defaultIcon = button.dataset.defaultIcon || button.innerHTML;
+        button.dataset.defaultIcon = defaultIcon;
+        button.classList.add("success");
+        button.title = text("copied");
+        button.innerHTML = checkIcon(15);
+        window.setTimeout(function () {
+          button.classList.remove("success");
+          button.title = text("copy");
+          button.innerHTML = button.dataset.defaultIcon || copyIcon();
+        }, 1400);
+      }
+
+      function flashCopyAllButton() {
+        var button = document.getElementById("copyAllButton");
+        var label = document.getElementById("copyAllText");
+        var iconHolder = document.getElementById("copyAllIcon");
+        var defaultIcon = iconHolder.dataset.defaultIcon || iconHolder.innerHTML;
+        iconHolder.dataset.defaultIcon = defaultIcon;
+        button.classList.add("success");
+        label.textContent = text("copiedAll");
+        iconHolder.innerHTML = checkIcon(14);
+        window.setTimeout(function () {
+          button.classList.remove("success");
+          label.textContent = text("copyAll");
+          iconHolder.innerHTML = iconHolder.dataset.defaultIcon;
+        }, 1500);
+      }
+
+      function applyI18n() {
+        document.documentElement.lang = lang;
+        document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
+        document.querySelectorAll("[data-i18n]").forEach(function (element) {
+          element.textContent = text(element.getAttribute("data-i18n"));
+        });
+        document.querySelectorAll("[data-i18n-title]").forEach(function (element) {
+          element.title = text(element.getAttribute("data-i18n-title"));
+        });
+        document.getElementById("langButtonText").textContent = I18N[lang].otherLanguage;
+        document.getElementById("brandName").textContent = data.subTitle || "3x-ui";
+        document.title = (data.subTitle ? data.subTitle + " | " : "") + text("appTitle");
+        renderStatus();
+        renderUsage();
+        renderCountdown();
+        renderSubscriptionLinks();
+        renderConfigs();
+        renderNotice();
+        highlightRing(defaultHighlightKey());
+      }
+
+      document.getElementById("langButton").addEventListener("click", function () {
+        lang = lang === "fa" ? "en" : "fa";
+        try { localStorage.setItem("sub_lang", lang); } catch (error) { }
+        applyI18n();
+        updateScrollFades();
+      });
+
+      document.getElementById("noticeClose").addEventListener("click", function () {
+        noticeDismissed = true;
+        document.getElementById("notice").classList.add("hidden");
+      });
+
+      document.getElementById("copySubButton").addEventListener("click", function () {
+        var button = this;
+        copyText(data.subUrl).then(function (success) {
+          if (success) flashCopyButton(button);
+        });
+      });
+
+      document.getElementById("copyAllButton").addEventListener("click", function () {
+        copyText(data.links.join("\n")).then(function (success) {
+          if (!success) return;
+          flashCopyAllButton();
+        });
+      });
+
+      document.querySelectorAll("[data-ring-key]").forEach(function (element) {
+        var key = element.getAttribute("data-ring-key");
+        element.addEventListener("mouseenter", function () { highlightRing(key); });
+        element.addEventListener("mouseleave", function () { highlightRing(defaultHighlightKey()); });
+      });
+
+      document.querySelectorAll("[data-legend-key]").forEach(function (element) {
+        var key = element.getAttribute("data-legend-key");
+        element.addEventListener("mouseenter", function () { highlightRing(key); });
+        element.addEventListener("mouseleave", function () { highlightRing(defaultHighlightKey()); });
+        element.addEventListener("focus", function () { highlightRing(key); });
+        element.addEventListener("blur", function () { highlightRing(defaultHighlightKey()); });
+      });
+
+      var configsListElement = document.getElementById("configsList");
+      if (configsListElement) {
+        configsListElement.addEventListener("scroll", updateScrollFades);
+      }
+      window.addEventListener("resize", updateScrollFades);
+
+      function renderAll() {
+        recomputeDerived();
+        buildRing();
+        applyI18n();
+        highlightRing(defaultHighlightKey());
+        updateScrollFades();
+        if (countdownTimer) window.clearInterval(countdownTimer);
+        countdownTimer = window.setInterval(function () {
+          renderCountdown();
+          renderNotice();
+          document.getElementById("lastOnlineValue").textContent = formatRelative(data.lastOnline);
+        }, 1000);
+      }
+
+      renderAll();
+
+      fetchAppData().then(function (result) {
+        data = result;
+        renderAll();
+      });
+
+      window.addEventListener("beforeunload", function () {
+        if (countdownTimer) window.clearInterval(countdownTimer);
+      });
+    }());
+  </script>
+</body>
+</html>
