@@ -12,9 +12,12 @@ const jwt = require('jsonwebtoken');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ---------- Fixed admin credentials ----------
-const ADMIN_USERNAME = 'arian';
-const ADMIN_PASSWORD = 'arian@11USER';
+// ---------- Admin credentials ----------
+// Set these in Railway → your project → Variables (ADMIN_USERNAME / ADMIN_PASSWORD)
+// so the real login isn't sitting in your public GitHub source. If you don't set
+// them, these two fall back to the defaults below.
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'arian';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'arian@11USER';
 
 // ---------- Server catalogue (must match the panel's server list) ----------
 const WG_SERVERS = {
