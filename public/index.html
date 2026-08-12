@@ -1090,12 +1090,64 @@
         <div id="usersListContainer" style="max-height: 320px; overflow-y: auto;">
           <!-- filled by JS -->
         </div>
+
+        <h3 style="margin: 22px 0 12px; color: var(--primary); font-size: 1rem;">🤖 <span data-i18n="botSectionTitle">TELEGRAM BOT</span></h3>
+        <button class="btn" id="openBotSettingsBtn" style="width:100%; justify-content:center;">
+          <i class="fab fa-telegram"></i> <span data-i18n="botOpenBtn">BOT SETUP</span>
+        </button>
       </div>
       <div class="modal-footer">
         <button class="btn" id="closeSettingsBtn" data-i18n="closeBtn">CLOSE</button>
       </div>
     </div>
   </div>
+
+  <!-- Telegram Bot Setup Modal (Admin Only) -->
+  <div class="modal" id="botModal">
+    <div class="modal-content" style="max-width: 600px;">
+      <div class="modal-header">
+        <h2 class="modal-title"><i class="fab fa-telegram"></i> <span data-i18n="botModalTitle">TELEGRAM BOT SETUP</span></h2>
+        <button class="close-modal" id="closeBotModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="config-status" style="justify-content:flex-start; margin-bottom: 16px;">
+          <div class="status-indicator off" id="botStatusIndicator"></div>
+          <span class="status-text" id="botStatusText" data-i18n="botStatusInactive">INACTIVE</span>
+        </div>
+
+        <div class="form-group">
+          <label for="botOwnerId" data-i18n="botOwnerIdLabel">YOUR TELEGRAM NUMERIC ID (OWNER)</label>
+          <div class="fancy-input">
+            <i class="fas fa-id-badge"></i>
+            <input type="text" id="botOwnerId" placeholder="e.g. 123456789">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="botToken" data-i18n="botTokenLabel">BOT TOKEN</label>
+          <div class="fancy-input">
+            <i class="fas fa-key"></i>
+            <input type="text" id="botToken" placeholder="123456:ABC-DEF...">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="botChannels" data-i18n="botChannelsLabel">FORCED-JOIN CHANNELS (ONE PER LINE, BOT MUST BE ADMIN THERE)</label>
+          <textarea id="botChannels" rows="4" placeholder="@channel1&#10;@channel2" style="width:100%; padding:15px; background: rgba(14,32,52,0.8); border:1px solid rgba(0,229,255,0.3); border-radius:10px; color: var(--light); font-family:'Exo 2',sans-serif; font-size:1rem; resize: vertical;"></textarea>
+        </div>
+
+        <p id="botError" style="display:none; color: var(--danger); font-size: 0.85rem; margin-bottom: 10px;"></p>
+        <p id="botSuccess" style="display:none; color: var(--success); font-size: 0.85rem; margin-bottom: 10px;"></p>
+      </div>
+      <div class="modal-footer" style="flex-wrap: wrap;">
+        <button class="btn" id="closeBotModalBtn" data-i18n="closeBtn">CLOSE</button>
+        <button class="btn" id="saveBotSettingsBtn"><i class="fas fa-save"></i> <span data-i18n="botSaveBtn">SAVE</span></button>
+        <button class="btn btn-primary" id="startBotBtn"><i class="fas fa-rocket"></i> <span data-i18n="botStartBtn">CREATE / START BOT</span></button>
+        <button class="btn" id="stopBotBtn" style="color: var(--danger);"><i class="fas fa-stop"></i> <span data-i18n="botStopBtn">STOP BOT</span></button>
+      </div>
+    </div>
+  </div>
+
 
   <!-- Create Config Modal -->
   <div class="modal" id="createModal">
@@ -1388,7 +1440,21 @@
         errAccountExpired: 'This account has expired. Contact the admin to renew.',
         errUsernameTaken: 'This username is already taken.',
         errNetwork: 'Could not reach the server. Check your connection.',
-        errGeneric: 'Something went wrong. Please try again.'
+        errGeneric: 'Something went wrong. Please try again.',
+        botSectionTitle: 'TELEGRAM BOT',
+        botOpenBtn: 'BOT SETUP',
+        botModalTitle: 'TELEGRAM BOT SETUP',
+        botStatusActive: 'ACTIVE',
+        botStatusInactive: 'INACTIVE',
+        botOwnerIdLabel: 'YOUR TELEGRAM NUMERIC ID (OWNER)',
+        botTokenLabel: 'BOT TOKEN',
+        botChannelsLabel: 'FORCED-JOIN CHANNELS (ONE PER LINE, BOT MUST BE ADMIN THERE)',
+        botSaveBtn: 'SAVE',
+        botStartBtn: 'CREATE / START BOT',
+        botStopBtn: 'STOP BOT',
+        botSavedMsg: 'Bot settings saved.',
+        botStartedMsg: 'Bot started successfully.',
+        botStoppedMsg: 'Bot stopped.'
       },
       fa: {
         loginTagline: 'پنل مدیریت حرفه‌ای وایرگارد',
@@ -1482,7 +1548,21 @@
         errAccountExpired: 'اعتبار این حساب تمام شده. برای تمدید با مدیر تماس بگیرید.',
         errUsernameTaken: 'این نام کاربری قبلاً استفاده شده است.',
         errNetwork: 'ارتباط با سرور برقرار نشد. اتصال خود را بررسی کنید.',
-        errGeneric: 'مشکلی پیش آمد. دوباره تلاش کنید.'
+        errGeneric: 'مشکلی پیش آمد. دوباره تلاش کنید.',
+        botSectionTitle: 'ربات تلگرام',
+        botOpenBtn: 'تنظیمات ربات',
+        botModalTitle: 'راه‌اندازی ربات تلگرام',
+        botStatusActive: 'فعال',
+        botStatusInactive: 'غیرفعال',
+        botOwnerIdLabel: 'آیدی عددی تلگرام شما (مالک)',
+        botTokenLabel: 'توکن ربات',
+        botChannelsLabel: 'کانال‌های عضویت اجباری (هرکدام در یک خط، ربات باید توشون ادمین باشد)',
+        botSaveBtn: 'ذخیره',
+        botStartBtn: 'ساخت / استارت ربات',
+        botStopBtn: 'توقف ربات',
+        botSavedMsg: 'تنظیمات ربات ذخیره شد.',
+        botStartedMsg: 'ربات با موفقیت استارت شد.',
+        botStoppedMsg: 'ربات متوقف شد.'
       }
     };
 
@@ -1594,6 +1674,13 @@
       document.getElementById('closeSettingsModal').addEventListener('click', () => closeModal('settingsModal'));
       document.getElementById('closeSettingsBtn').addEventListener('click', () => closeModal('settingsModal'));
       document.getElementById('createUserBtn').addEventListener('click', createUser);
+
+      document.getElementById('openBotSettingsBtn').addEventListener('click', openBotSettings);
+      document.getElementById('closeBotModal').addEventListener('click', () => closeModal('botModal'));
+      document.getElementById('closeBotModalBtn').addEventListener('click', () => closeModal('botModal'));
+      document.getElementById('saveBotSettingsBtn').addEventListener('click', saveBotSettings);
+      document.getElementById('startBotBtn').addEventListener('click', startBot);
+      document.getElementById('stopBotBtn').addEventListener('click', stopBot);
 
       document.querySelectorAll('.modal').forEach(modal => {
         modal.addEventListener('click', function(e) {
@@ -2307,6 +2394,92 @@
       }
     }
     // ---------- End Admin Settings ----------
+
+    // ---------- Telegram Bot Settings ----------
+    async function openBotSettings() {
+      openModal('botModal');
+      document.getElementById('botError').style.display = 'none';
+      document.getElementById('botSuccess').style.display = 'none';
+      try {
+        const data = await apiFetch('/api/admin/bot');
+        document.getElementById('botOwnerId').value = data.ownerId || '';
+        document.getElementById('botToken').value = data.token || '';
+        document.getElementById('botChannels').value = (data.channels || []).join('\n');
+        setBotStatus(data.active);
+      } catch (err) {
+        setBotStatus(false);
+      }
+    }
+
+    function setBotStatus(active) {
+      const indicator = document.getElementById('botStatusIndicator');
+      const text = document.getElementById('botStatusText');
+      if (active) {
+        indicator.classList.remove('off');
+        text.textContent = t('botStatusActive');
+      } else {
+        indicator.classList.add('off');
+        text.textContent = t('botStatusInactive');
+      }
+    }
+
+    async function saveBotSettings() {
+      const ownerId = document.getElementById('botOwnerId').value.trim();
+      const token = document.getElementById('botToken').value.trim();
+      const channels = document.getElementById('botChannels').value
+        .split(/\r?\n/).map(c => c.trim()).filter(Boolean);
+      const errorEl = document.getElementById('botError');
+      const successEl = document.getElementById('botSuccess');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      if (!ownerId || !token) {
+        errorEl.textContent = t('errMissingFields');
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        await apiFetch('/api/admin/bot', {
+          method: 'POST',
+          body: JSON.stringify({ ownerId, token, channels })
+        });
+        successEl.textContent = t('botSavedMsg');
+        successEl.style.display = 'block';
+      } catch (err) {
+        errorEl.textContent = t('errGeneric');
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function startBot() {
+      const errorEl = document.getElementById('botError');
+      const successEl = document.getElementById('botSuccess');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+      try {
+        await saveBotSettings();
+        await apiFetch('/api/admin/bot/start', { method: 'POST' });
+        setBotStatus(true);
+        successEl.textContent = t('botStartedMsg');
+        successEl.style.display = 'block';
+        showToast(t('botStartedMsg'), '', 'success');
+      } catch (err) {
+        errorEl.textContent = (err.data && err.data.message) || t('errGeneric');
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function stopBot() {
+      try {
+        await apiFetch('/api/admin/bot/stop', { method: 'POST' });
+        setBotStatus(false);
+        showToast(t('botStoppedMsg'), '', 'success');
+      } catch (err) {
+        showToast(t('toastErrorTitle'), t('errGeneric'), 'danger');
+      }
+    }
+    // ---------- End Telegram Bot Settings ----------
 
     // Show toast notification
     function showToast(title, message, type = 'success') {
