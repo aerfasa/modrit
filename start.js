@@ -1,8 +1,8 @@
-// PUG62 WireGuard Panel — backend server
+// PUG62 WireGuard Panel — backend server with Telegram Bot
 // Serves the panel (public/index.html), the subscription page (public/sub.html),
 // a JSON-file-backed API for auth/admin/configs, and an optional Telegram bot
 // (referral coins, forced-join gate, self-service panel issuance, ban system,
-// owner-only management menu) configured from the panel's Settings screen.
+// owner-only management menu with unlimited coin transfer)
 
 const express = require('express');
 const path = require('path');
@@ -15,48 +15,46 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ---------- Admin credentials ----------
-// Set these in Railway → your project → Variables (ADMIN_USERNAME / ADMIN_PASSWORD)
-// so the real login isn't sitting in your public GitHub source. If you don't set
-// them, these two fall back to the defaults below.
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'arian';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'arian@11USER';
+const ADMIN_USERNAME = 'arian';
+const ADMIN_PASSWORD = 'arian@11USER';
 
 const PANEL_URL = process.env.PANEL_URL || 'https://pug62best.dpdns.org/';
 
-// ---------- Server catalogue (must match the panel's server list) ----------
+// ---------- Server catalogue (UPDATED with your new configs) ----------
 const WG_SERVERS = {
-  UAE: { ip: '0.0.0.0', port: 51820, country: 'United Arab Emirates', city: 'Dubai' },
-  TR: { ip: '0.0.0.0', port: 51820, country: 'Turkey', city: 'Istanbul' },
+  UAE: { ip: '154.49.239.4', port: 62050, country: 'United Arab Emirates', city: 'Dubai' },
+  TR: { ip: '154.49.239.4', port: 62050, country: 'Turkey', city: 'Istanbul' },
   IR: { ip: '0.0.0.0', port: 51820, country: 'Iran', city: 'Tehran' }
 };
 
 const CONFIG_TEMPLATES = {
   UAE: `[Interface]
-PrivateKey = aDi30cQATlyFXRlOmLzjK68vQxBe7kDYPisjB8Jg51A=
-Address = 10.109.77.164/32
-DNS = 1.1.1.1, 1.181.121.10
-# Name: B11
-# Region: \uD83C\uDDE6\uD83C\uDDEA\u0627\u0645\u0627\u0631\u0627\u062a
-# VIP: Active
+PrivateKey = xIxZdTx8VQsdG2KCepbuVYSRmd6iv8s3BOSC+xU4/hE=
+Address = 10.66.66.191/24, fd86:ea04:1111::225/64
+DNS = 1.1.1.1, 92.38.142.153, 2620:fe::25, 2620:fe::9c
+MTU = 1300
 
 [Peer]
-PublicKey = 3ArEYLg6wR6NYXrg4RTlI4kQmi5iX0z1ERpfKyxSxhk=
-AllowedIPs = ::/0
-Endpoint = 0.0.0.0:51820
-PersistentKeepalive = 25`,
+PublicKey = OjI0kHigkiP6V5B92GlbOfbTQSzCQkcO/nOVQKvGTd0=
+PersistentKeepalive = 25
+PreSharedKey = 45ovhOuAU3aU4RDCszF/hI+8sxoHLWlF+y7CQt/y6Tg=
+Endpoint = 154.49.239.4:62050
+AllowedIPs = 5.112.0.0/16, 2a03:4400::/64`,
+
   TR: `[Interface]
-PrivateKey = iKhR4GJ5wBstKxjkwUDHkMVUoMUL8lxTmql0iW2JTUE=
-Address = 10.49.101.173/32
-DNS = 1.1.1.1, 1.180.197.251
-# Name: B12
-# Region: \uD83C\uDDF9\uD83C\uDDF7\u062a\u0631\u06a9\u06cc\u0647
-# VIP: Active
+PrivateKey = qRbs8zzHy+0aP4ejaku2yKI56ZHWCVoMg4uhMLn8g34=
+Address = 5.112.222.239/27, 84e0:cd6:2707:1c6e:ca1:b0b:c30:acd/128
+MTU = 1422
+ListenPort = 2088
+DNS = 78.157.42.100, 5.112.193.91, 2a03:4400::7b8:167b:10f6:e40a, 2a03:4400::7b8:167b:12b1:e40a
 
 [Peer]
-PublicKey = 8H3ovcm3xmFxfhmq5jV7aiza4itoynGgOu1tpL7jJEg=
-AllowedIPs = ::/0
-Endpoint = 0.0.0.0:51820
-PersistentKeepalive = 25`,
+PublicKey = OjI0kHigkiP6V5B92GlbOfbTQSzCQkcO/nOVQKvGTd0=
+PersistentKeepalive = 25
+PreSharedKey = 45ovhOuAU3aU4RDCszF/hI+8sxoHLWlF+y7CQt/y6Tg=
+Endpoint = 154.49.239.4:62050
+AllowedIPs = 5.112.0.0/16, 2a03:4400::/64`,
+
   IR: `[Interface]
 PrivateKey = kNvr1/n8GbdzCdQxqlBeWQUur2XP5wbB0fjmHnwFZUQ=
 Address = 10.39.89.26/32
@@ -79,15 +77,15 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 function freshDB() {
   return {
     jwtSecret: crypto.randomBytes(32).toString('hex'),
-    users: [],        // regular (customer) accounts — created from Settings or by the bot
-    adminConfigs: [],  // WireGuard configs created while logged in as the admin
+    users: [],
+    adminConfigs: [],
     bot: {
       ownerId: '',
       token: '',
-      channels: [],    // e.g. ["@mychannel1", "@mychannel2"]
+      channels: [],
       active: false,
-      users: {},       // telegram id (string) -> bot user record
-      supportReplyMap: {} // owner message_id -> telegram id being replied to
+      users: {},
+      supportReplyMap: {}
     }
   };
 }
@@ -133,7 +131,7 @@ function daysLeftOf(expireAt) {
   return Math.max(0, Math.ceil((expireAt - Date.now()) / 86400000));
 }
 
-// ---------- Shared license-user helpers (used by both the web API and the bot) ----------
+// ---------- Shared license-user helpers ----------
 function createLicenseUser(username, password, days) {
   const cleanUsername = String(username || '').trim();
   if (!cleanUsername || !password || !days || Number(days) <= 0) {
@@ -283,7 +281,7 @@ app.delete('/api/admin/users/:id', adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- Configs (scoped to the logged-in admin or user) ----------
+// ---------- Configs ----------
 function configsArrayFor(req) {
   return req.auth.role === 'admin' ? db.adminConfigs : req.userRecord.configs;
 }
@@ -388,7 +386,7 @@ app.delete('/api/configs/:id', authRequired, (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- Public subscription endpoint (no auth — powers sub.html) ----------
+// ---------- Public subscription endpoint ----------
 function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -504,7 +502,7 @@ app.post('/api/admin/bot/stop', adminOnly, (req, res) => {
 let botInstance = null;
 let botUsername = '';
 let renewalCheckTimer = null;
-const ownerSession = {}; // in-memory per-owner UI state (pagination/search/ban flow) — not persisted
+const ownerSession = {};
 
 function stopTelegramBot() {
   if (botInstance) {
@@ -524,7 +522,7 @@ async function startTelegramBot() {
   try {
     TelegramBot = require('node-telegram-bot-api');
   } catch (e) {
-    throw new Error('پکیج node-telegram-bot-api نصب نیست. مطمئن شو در package.json اضافه شده و npm install اجرا شده.');
+    throw new Error('پکیج node-telegram-bot-api نصب نیست.');
   }
 
   const bot = new TelegramBot(db.bot.token, { polling: true });
@@ -828,7 +826,7 @@ async function startTelegramBot() {
       }
 
       // ================= OWNER-ONLY MENUS =================
-      if (!isOwner(tgId)) return; // ignore owner-only callbacks from non-owners
+      if (!isOwner(tgId)) return;
 
       if (data === 'owner_menu') return sendOwnerMenu(chatId);
       if (data === 'owner_stats') return sendOwnerStats(chatId);
@@ -954,7 +952,7 @@ async function startTelegramBot() {
     return bot.sendMessage(chatId, '👤 یک نام کاربری برای پنلت بفرست (فقط حروف/عدد انگلیسی، بدون فاصله):');
   }
 
-  // ---------------- plain text messages (multi-step flows) ----------------
+  // ---------------- plain text messages ----------------
   bot.on('message', async (msg) => {
     if (!msg.text || msg.text.indexOf('/start') === 0) return;
     const tgId = String(msg.from.id);
@@ -1234,7 +1232,7 @@ async function startTelegramBot() {
     return bot.sendMessage(chatId, '🗂 تاریخچه بن‌ها:\n\n' + lines.join('\n\n'), { reply_markup: { inline_keyboard: [navRow] } });
   }
 
-  // ---------------- renewal reminders (checks every 30 minutes) ----------------
+  // ---------------- renewal reminders ----------------
   renewalCheckTimer = setInterval(() => {
     try {
       Object.values(db.bot.users).forEach((bu) => {
