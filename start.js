@@ -658,6 +658,34 @@ async function startTelegramBot() {
     }
   }
 
+  // ================= NEW: Transfer coins function (unlimited for owner) =================
+  async function transferCoins(chatId, targetId, amount) {
+    const target = db.bot.users[targetId];
+    if (!target) {
+      return bot.sendMessage(chatId, '❌ کاربر مورد نظر پیدا نشد.');
+    }
+    
+    if (!amount || amount <= 0) {
+      return bot.sendMessage(chatId, '❌ مقدار باید بیشتر از 0 باشد.');
+    }
+    
+    // Owner has unlimited coins, just add to user
+    target.coins = (target.coins || 0) + amount;
+    saveDB();
+    
+    // Send message to user
+    await bot.sendMessage(
+      target.id, 
+      `🎁 شما ${amount} سکه از طرف مدیریت دریافت کردید!\n🪙 سکه جدید شما: ${target.coins}`
+    ).catch(() => {});
+    
+    // Send confirmation to owner
+    await bot.sendMessage(
+      chatId, 
+      `✅ ${amount} سکه با موفقیت به کاربر ${target.firstName || targetId} منتقل شد.\n🪙 سکه جدید کاربر: ${target.coins}`
+    );
+  }
+
   // ---------------- /start ----------------
   bot.onText(/\/start(?:\s+(.+))?/, async (msg, match) => {
     const tgId = String(msg.from.id);
@@ -815,6 +843,24 @@ async function startTelegramBot() {
 
       if ((m = data.match(/^ownuser_(.+)$/))) return sendUserProfile(chatId, m[1]);
 
+      // ================= NEW: Transfer coins handlers =================
+      if ((m = data.match(/^transfer_coins_(.+)$/))) {
+        const targetId = m[1];
+        ownerSession.pendingTransfer = { targetId };
+        return bot.sendMessage(
+          chatId, 
+          '💰 چند سکه می‌خواید به این کاربر بدید؟\n(عدد را وارد کنید - شما به عنوان مالک سکه نامحدود دارید)'
+        );
+      }
+
+      // Quick transfer buttons
+      if ((m = data.match(/^transfer_quick_(.+)_(\d+)$/))) {
+        const targetId = m[1];
+        const amount = parseInt(m[2], 10);
+        await transferCoins(chatId, targetId, amount);
+        return;
+      }
+
       if ((m = data.match(/^ban_start_(.+)$/))) {
         const targetId = m[1];
         return bot.sendMessage(chatId, 'مدت بن؟', {
@@ -932,6 +978,19 @@ async function startTelegramBot() {
       return bot.sendMessage(chatId, '✅ پیام ارسال شد.');
     }
 
+    // ================= NEW: Owner transferring coins =================
+    if (isOwner(tgId) && ownerSession.pendingTransfer) {
+      const amount = parseInt(text, 10);
+      if (!amount || amount <= 0) {
+        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
+      }
+      
+      const targetId = ownerSession.pendingTransfer.targetId;
+      ownerSession.pendingTransfer = null;
+      await transferCoins(chatId, targetId, amount);
+      return;
+    }
+
     // Owner ban flow: entering number of days
     if (isOwner(tgId) && ownerSession.pendingBan && ownerSession.pendingBan.awaitingDays) {
       const days = parseInt(text, 10);
@@ -1046,16 +1105,22 @@ async function startTelegramBot() {
 
   // ================= Owner menu senders =================
   function sendOwnerMenu(chatId) {
-    return bot.sendMessage(chatId, '👑 پنل مدیریت ربات', {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: '📊 وضعیت ربات', callback_data: 'owner_stats' }],
-          [{ text: '👥 لیست کاربران', callback_data: 'owner_users_list' }, { text: '🔎 جستجو', callback_data: 'owner_search' }],
-          [{ text: '🔒 بن‌شده‌ها', callback_data: 'owner_banned_list' }],
-          [{ text: '🗂 بن‌های قبلی', callback_data: 'owner_ban_history' }]
-        ]
+    return bot.sendMessage(
+      chatId, 
+      '👑 پنل مدیریت ربات\n\n' +
+      '🪙 وضعیت سکه شما: **نامحدود** ♾️\n' +
+      'شما می‌توانید به هر کاربری هر مقدار سکه که می‌خواید بدید.',
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📊 وضعیت ربات', callback_data: 'owner_stats' }],
+            [{ text: '👥 لیست کاربران', callback_data: 'owner_users_list' }, { text: '🔎 جستجو', callback_data: 'owner_search' }],
+            [{ text: '🔒 بن‌شده‌ها', callback_data: 'owner_banned_list' }],
+            [{ text: '🗂 بن‌های قبلی', callback_data: 'owner_ban_history' }]
+          ]
+        }
       }
-    });
+    );
   }
 
   function sendOwnerStats(chatId) {
@@ -1064,12 +1129,14 @@ async function startTelegramBot() {
     const joined = all.filter((x) => x.joinedChannels).length;
     const gotPanel = all.filter((x) => x.panels && x.panels.length).length;
     const bannedNow = all.filter((x) => isBanned(x)).length;
+    
     return bot.sendMessage(chatId,
       '📊 وضعیت ربات\n\n' +
       '👥 کل کاربران: ' + total + ' نفر' +
       '\n✅ عضو کانال‌ها: ' + joined + ' نفر' +
       '\n📦 دریافت‌کننده‌ی پنل: ' + gotPanel + ' نفر' +
-      '\n🚫 بن‌شده الان: ' + bannedNow + ' نفر'
+      '\n🚫 بن‌شده الان: ' + bannedNow + ' نفر' +
+      '\n🪙 شما به عنوان مالک سکه نامحدود دارید ♾️'
     );
   }
 
@@ -1125,6 +1192,14 @@ async function startTelegramBot() {
     if (banned) rows.push([{ text: '✅ رفع بن', callback_data: 'unban_' + bu.id }]);
     else rows.push([{ text: '🚫 بن کردن', callback_data: 'ban_start_' + bu.id }]);
     rows.push([{ text: '✉️ ارسال پیام', callback_data: 'msguser_' + bu.id }]);
+    
+    // NEW: Transfer coins buttons
+    rows.push([
+      { text: '💰 10 سکه', callback_data: 'transfer_quick_' + bu.id + '_10' },
+      { text: '💰 50 سکه', callback_data: 'transfer_quick_' + bu.id + '_50' },
+      { text: '💰 100 سکه', callback_data: 'transfer_quick_' + bu.id + '_100' }
+    ]);
+    rows.push([{ text: '💰 انتقال دلخواه', callback_data: 'transfer_coins_' + bu.id }]);
 
     return bot.sendMessage(chatId, text, { reply_markup: { inline_keyboard: rows } });
   }
