@@ -1,10 +1,5 @@
-// PUG62 WireGuard Panel — backend server with Advanced Telegram Bot Management
-// Features:
-// - Dynamic panel pricing (set referral cost per day for each panel type)
-// - Multiple panel types (WireGuard, Pasargard, etc.)
-// - Referral value management (set how many coins per referral)
-// - Mass messaging to all users (scheduled or immediate)
-// - Bot on/off toggle (only for admin, users see maintenance message)
+// PUG62 WireGuard Panel — backend server with Telegram Bot (No additional packages)
+// بدون نیاز به node-schedule
 
 const express = require('express');
 const path = require('path');
@@ -12,7 +7,6 @@ const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const schedule = require('node-schedule');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,7 +17,7 @@ const ADMIN_PASSWORD = 'arian@11USER';
 
 const PANEL_URL = process.env.PANEL_URL || 'https://pug62best.dpdns.org/';
 
-// ---------- Server catalogue (UPDATED with your new configs) ----------
+// ---------- Server catalogue ----------
 const WG_SERVERS = {
   UAE: { ip: '154.49.239.4', port: 62050, country: 'United Arab Emirates', city: 'Dubai' },
   TR: { ip: '154.49.239.4', port: 62050, country: 'Turkey', city: 'Istanbul' },
@@ -73,7 +67,7 @@ Endpoint = 0.0.0.0:51820
 PersistentKeepalive = 25`
 };
 
-// ---------- Panel Types Configuration (Dynamic) ----------
+// ---------- Panel Types ----------
 const PANEL_TYPES = {
   wireguard: {
     name: '🛡 پنل وایرگارد',
@@ -89,7 +83,7 @@ const PANEL_TYPES = {
   }
 };
 
-// ---------- Tiny JSON-file database ----------
+// ---------- Database ----------
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
@@ -111,10 +105,9 @@ function freshDB() {
           wireguard: 0.5,
           pasargard: 1.5
         },
-        scheduledMessages: [],
         botEnabled: true,
         maintenanceMode: false,
-        botOffMessage: '🔴 ربات موقتاً غیرفعال شده است.\nلطفاً بعداً مراجعه کنید.\n\nمدیریت: برای فعال‌سازی مجدد به پنل مدیریت مراجعه کنید.'
+        botOffMessage: '🔴 ربات موقتاً غیرفعال شده است.\nلطفاً بعداً مراجعه کنید.'
       }
     }
   };
@@ -138,8 +131,7 @@ function loadDB() {
     if (!parsed.bot.supportReplyMap) parsed.bot.supportReplyMap = {};
     if (!parsed.bot.settings) parsed.bot.settings = freshDB().bot.settings;
     if (!parsed.bot.settings.panelCosts) parsed.bot.settings.panelCosts = { wireguard: 0.5, pasargard: 1.5 };
-    if (!Array.isArray(parsed.bot.settings.scheduledMessages)) parsed.bot.settings.scheduledMessages = [];
-    if (!parsed.bot.settings.botOffMessage) parsed.bot.settings.botOffMessage = '🔴 ربات موقتاً غیرفعال شده است.\nلطفاً بعداً مراجعه کنید.';
+    if (!parsed.bot.settings.botOffMessage) parsed.bot.settings.botOffMessage = '🔴 ربات موقتاً غیرفعال شده است.';
     return parsed;
   } catch (e) {
     const fresh = freshDB();
@@ -165,7 +157,6 @@ function daysLeftOf(expireAt) {
   return Math.max(0, Math.ceil((expireAt - Date.now()) / 86400000));
 }
 
-// ---------- Shared license-user helpers ----------
 function createLicenseUser(username, password, days) {
   const cleanUsername = String(username || '').trim();
   if (!cleanUsername || !password || !days || Number(days) <= 0) {
@@ -509,90 +500,28 @@ app.post('/api/admin/bot', adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-// NEW: Admin bot settings API
 app.post('/api/admin/bot/settings', adminOnly, (req, res) => {
   const { referralCoins, panelCosts, botEnabled, maintenanceMode, botOffMessage } = req.body || {};
   
   if (referralCoins !== undefined) {
     db.bot.settings.referralCoins = Number(referralCoins);
   }
-  
   if (panelCosts) {
     Object.keys(panelCosts).forEach(key => {
       db.bot.settings.panelCosts[key] = Number(panelCosts[key]);
     });
   }
-  
   if (botEnabled !== undefined) {
     db.bot.settings.botEnabled = !!botEnabled;
   }
-  
   if (maintenanceMode !== undefined) {
     db.bot.settings.maintenanceMode = !!maintenanceMode;
   }
-  
   if (botOffMessage !== undefined) {
     db.bot.settings.botOffMessage = String(botOffMessage);
   }
-  
   saveDB();
   res.json({ ok: true, settings: db.bot.settings });
-});
-
-// NEW: Scheduled messages API
-app.post('/api/admin/bot/schedule', adminOnly, (req, res) => {
-  const { cron, message, active } = req.body || {};
-  if (!cron || !message) return res.status(400).json({ error: 'missing_fields' });
-  
-  const scheduled = {
-    id: genId('sch'),
-    cron: String(cron).trim(),
-    message: String(message).trim(),
-    active: active !== undefined ? !!active : true,
-    createdAt: Date.now()
-  };
-  
-  db.bot.settings.scheduledMessages.push(scheduled);
-  saveDB();
-  
-  // Schedule the message if bot is active
-  if (db.bot.active && botInstance && db.bot.settings.botEnabled) {
-    scheduleMessage(scheduled);
-  }
-  
-  res.json({ ok: true, scheduled });
-});
-
-app.delete('/api/admin/bot/schedule/:id', adminOnly, (req, res) => {
-  const idx = db.bot.settings.scheduledMessages.findIndex(s => s.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'not_found' });
-  
-  // Cancel scheduled job if exists
-  if (scheduledJobs[req.params.id]) {
-    scheduledJobs[req.params.id].cancel();
-    delete scheduledJobs[req.params.id];
-  }
-  
-  db.bot.settings.scheduledMessages.splice(idx, 1);
-  saveDB();
-  res.json({ ok: true });
-});
-
-app.post('/api/admin/bot/schedule/:id/toggle', adminOnly, (req, res) => {
-  const scheduled = db.bot.settings.scheduledMessages.find(s => s.id === req.params.id);
-  if (!scheduled) return res.status(404).json({ error: 'not_found' });
-  
-  scheduled.active = !scheduled.active;
-  saveDB();
-  
-  if (scheduled.active && db.bot.active && botInstance && db.bot.settings.botEnabled) {
-    scheduleMessage(scheduled);
-  } else if (scheduledJobs[req.params.id]) {
-    scheduledJobs[req.params.id].cancel();
-    delete scheduledJobs[req.params.id];
-  }
-  
-  res.json({ ok: true, active: scheduled.active });
 });
 
 app.post('/api/admin/bot/start', adminOnly, async (req, res) => {
@@ -620,31 +549,22 @@ app.post('/api/admin/bot/stop', adminOnly, (req, res) => {
   res.json({ ok: true });
 });
 
-// NEW: Mass message API
 app.post('/api/admin/bot/mass-message', adminOnly, async (req, res) => {
   const { message, confirm } = req.body || {};
   if (!message) return res.status(400).json({ error: 'missing_message' });
   if (!confirm) return res.status(400).json({ error: 'confirmation_required' });
-  
-  if (!botInstance) {
-    return res.status(400).json({ error: 'bot_not_running' });
-  }
+  if (!botInstance) return res.status(400).json({ error: 'bot_not_running' });
   
   try {
     const users = Object.values(db.bot.users);
-    let sent = 0;
-    let failed = 0;
-    
+    let sent = 0, failed = 0;
     for (const user of users) {
       try {
         await botInstance.sendMessage(user.id, message);
         sent++;
-      } catch (e) {
-        failed++;
-      }
+      } catch (e) { failed++; }
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-    
     res.json({ ok: true, sent, failed, total: users.length });
   } catch (err) {
     res.status(500).json({ error: 'mass_message_failed', message: String(err) });
@@ -659,7 +579,6 @@ let botInstance = null;
 let botUsername = '';
 let renewalCheckTimer = null;
 const ownerSession = {};
-const scheduledJobs = {};
 
 function stopTelegramBot() {
   if (botInstance) {
@@ -669,38 +588,6 @@ function stopTelegramBot() {
   if (renewalCheckTimer) {
     clearInterval(renewalCheckTimer);
     renewalCheckTimer = null;
-  }
-  
-  // Cancel all scheduled jobs
-  Object.keys(scheduledJobs).forEach(key => {
-    scheduledJobs[key].cancel();
-    delete scheduledJobs[key];
-  });
-}
-
-function scheduleMessage(scheduled) {
-  if (scheduledJobs[scheduled.id]) {
-    scheduledJobs[scheduled.id].cancel();
-  }
-  
-  try {
-    const job = schedule.scheduleJob(scheduled.cron, async function() {
-      if (!db.bot.active || !botInstance || !scheduled.active || !db.bot.settings.botEnabled) return;
-      
-      const users = Object.values(db.bot.users);
-      for (const user of users) {
-        try {
-          await botInstance.sendMessage(user.id, scheduled.message);
-        } catch (e) {
-          // Skip failed sends
-        }
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-    });
-    
-    scheduledJobs[scheduled.id] = job;
-  } catch (e) {
-    console.error('Failed to schedule message:', e);
   }
 }
 
@@ -715,7 +602,7 @@ async function startTelegramBot() {
   try {
     TelegramBot = require('node-telegram-bot-api');
   } catch (e) {
-    throw new Error('پکیج node-telegram-bot-api نصب نیست.');
+    throw new Error('پکیج node-telegram-bot-api نصب نیست. لطفاً نصب کنید: npm install node-telegram-bot-api');
   }
 
   const bot = new TelegramBot(db.bot.token, { polling: true });
@@ -796,12 +683,10 @@ async function startTelegramBot() {
       '\n\n💬 برای پیگیری با پشتیبانی در ارتباط باشید.';
   }
 
-  // NEW: Function to check if bot is available for users
   function isBotAvailableForUsers() {
     return db.bot.settings.botEnabled && !db.bot.settings.maintenanceMode && db.bot.active;
   }
 
-  // NEW: Get bot status message for users
   function getBotStatusMessage() {
     if (!db.bot.settings.botEnabled) {
       return db.bot.settings.botOffMessage || '🔴 ربات موقتاً غیرفعال شده است.\nلطفاً بعداً مراجعه کنید.';
@@ -894,58 +779,25 @@ async function startTelegramBot() {
     }
   }
 
-  // ================= Transfer coins function (unlimited for owner) =================
   async function transferCoins(chatId, targetId, amount) {
     const target = db.bot.users[targetId];
-    if (!target) {
-      return bot.sendMessage(chatId, '❌ کاربر مورد نظر پیدا نشد.');
-    }
-    
-    if (!amount || amount <= 0) {
-      return bot.sendMessage(chatId, '❌ مقدار باید بیشتر از 0 باشد.');
-    }
-    
+    if (!target) return bot.sendMessage(chatId, '❌ کاربر مورد نظر پیدا نشد.');
+    if (!amount || amount <= 0) return bot.sendMessage(chatId, '❌ مقدار باید بیشتر از 0 باشد.');
     target.coins = (target.coins || 0) + amount;
     saveDB();
-    
-    await bot.sendMessage(
-      target.id, 
-      `🎁 شما ${amount} سکه از طرف مدیریت دریافت کردید!\n🪙 سکه جدید شما: ${target.coins}`
-    ).catch(() => {});
-    
-    await bot.sendMessage(
-      chatId, 
-      `✅ ${amount} سکه با موفقیت به کاربر ${target.firstName || targetId} منتقل شد.\n🪙 سکه جدید کاربر: ${target.coins}`
-    );
+    await bot.sendMessage(target.id, `🎁 شما ${amount} سکه از طرف مدیریت دریافت کردید!\n🪙 سکه جدید شما: ${target.coins}`).catch(() => {});
+    await bot.sendMessage(chatId, `✅ ${amount} سکه با موفقیت به کاربر ${target.firstName || targetId} منتقل شد.\n🪙 سکه جدید کاربر: ${target.coins}`);
   }
 
-  // ================= Remove coins from user =================
   async function removeCoins(chatId, targetId, amount) {
     const target = db.bot.users[targetId];
-    if (!target) {
-      return bot.sendMessage(chatId, '❌ کاربر مورد نظر پیدا نشد.');
-    }
-    
-    if (!amount || amount <= 0) {
-      return bot.sendMessage(chatId, '❌ مقدار باید بیشتر از 0 باشد.');
-    }
-    
-    if ((target.coins || 0) < amount) {
-      return bot.sendMessage(chatId, `❌ کاربر فقط ${target.coins || 0} سکه دارد.`);
-    }
-    
+    if (!target) return bot.sendMessage(chatId, '❌ کاربر مورد نظر پیدا نشد.');
+    if (!amount || amount <= 0) return bot.sendMessage(chatId, '❌ مقدار باید بیشتر از 0 باشد.');
+    if ((target.coins || 0) < amount) return bot.sendMessage(chatId, `❌ کاربر فقط ${target.coins || 0} سکه دارد.`);
     target.coins = (target.coins || 0) - amount;
     saveDB();
-    
-    await bot.sendMessage(
-      target.id, 
-      `⚠️ ${amount} سکه از حساب شما کم شد!\n🪙 سکه جدید شما: ${target.coins}`
-    ).catch(() => {});
-    
-    await bot.sendMessage(
-      chatId, 
-      `✅ ${amount} سکه از کاربر ${target.firstName || targetId} کم شد.\n🪙 سکه جدید کاربر: ${target.coins}`
-    );
+    await bot.sendMessage(target.id, `⚠️ ${amount} سکه از حساب شما کم شد!\n🪙 سکه جدید شما: ${target.coins}`).catch(() => {});
+    await bot.sendMessage(chatId, `✅ ${amount} سکه از کاربر ${target.firstName || targetId} کم شد.\n🪙 سکه جدید کاربر: ${target.coins}`);
   }
 
   // ---------------- /start ----------------
@@ -954,26 +806,20 @@ async function startTelegramBot() {
     const chatId = msg.chat.id;
     const u = getBotUser(tgId, msg.from);
 
-    // Check if user is owner (admin)
     if (isOwner(tgId)) {
-      // Owner always has access
       if (isBanned(u)) return bot.sendMessage(chatId, banMessageText(u));
-      
       const joined = await checkChannels(tgId);
       if (!joined) {
         return bot.sendMessage(chatId, '📢 برای استفاده از ربات اول باید عضو کانال‌(های) زیر بشی، بعد دکمه «عضو شدم» رو بزن:', { reply_markup: channelsKeyboard() });
       }
-
       if (!u.joinedChannels) {
         u.joinedChannels = true;
         saveDB();
         await grantReferralCoin(u, tgId);
       }
-
       return sendWelcome(chatId, tgId);
     }
 
-    // For regular users: check if bot is available
     if (!isBotAvailableForUsers()) {
       const statusMsg = getBotStatusMessage();
       return bot.sendMessage(chatId, statusMsg || '🔴 ربات در حال حاضر در دسترس نیست. لطفاً بعداً مراجعه کنید.');
@@ -1005,7 +851,7 @@ async function startTelegramBot() {
     await sendWelcome(chatId, tgId);
   });
 
-  // ---------------- callback buttons ----------------
+  // ---------------- callback buttons (خلاصه شده) ----------------
   bot.on('callback_query', async (query) => {
     const tgId = String(query.from.id);
     const chatId = query.message.chat.id;
@@ -1013,14 +859,9 @@ async function startTelegramBot() {
     const u = getBotUser(tgId, query.from);
 
     try {
-      // Check if user is owner
-      if (!isOwner(tgId)) {
-        // For regular users: check if bot is available
-        if (!isBotAvailableForUsers()) {
-          await bot.answerCallbackQuery(query.id);
-          const statusMsg = getBotStatusMessage();
-          return bot.sendMessage(chatId, statusMsg || '🔴 ربات در حال حاضر در دسترس نیست. لطفاً بعداً مراجعه کنید.');
-        }
+      if (!isOwner(tgId) && !isBotAvailableForUsers()) {
+        await bot.answerCallbackQuery(query.id);
+        return bot.sendMessage(chatId, getBotStatusMessage() || '🔴 ربات در دسترس نیست.');
       }
 
       if (isBanned(u)) {
@@ -1028,7 +869,7 @@ async function startTelegramBot() {
         return bot.sendMessage(chatId, banMessageText(u));
       }
 
-      // ---- forced-join re-check ----
+      // ---- check_join ----
       if (data === 'check_join') {
         const joined = await checkChannels(tgId);
         await bot.answerCallbackQuery(query.id, { text: joined ? '✅ عضویت تایید شد' : '❌ هنوز عضو همه کانال‌ها نیستی' });
@@ -1055,7 +896,7 @@ async function startTelegramBot() {
         );
       }
 
-      // ---- user info ----
+      // ---- user_info ----
       if (data === 'user_info') {
         return bot.sendMessage(chatId,
           '👤 اطلاعات شما\n\n' +
@@ -1067,7 +908,7 @@ async function startTelegramBot() {
         );
       }
 
-      // ---- my panels ----
+      // ---- my_panels ----
       if (data === 'my_panels') {
         if (!u.panels.length) {
           return bot.sendMessage(chatId, '📭 هنوز هیچ پنلی دریافت نکردی.\nاز دکمه «دریافت پنل» استفاده کن.');
@@ -1089,25 +930,20 @@ async function startTelegramBot() {
         return bot.sendMessage(chatId, '✍️ پیامت رو بنویس، مستقیم برای پشتیبانی ارسال می‌شه:');
       }
 
-      // ---- get panel: show panel types ----
+      // ---- get_panel ----
       if (data === 'get_panel') {
         u.state = { action: 'selecting_panel_type' };
         saveDB();
-        return bot.sendMessage(chatId, '🛡 نوع پنل مورد نظر را انتخاب کنید:', { 
-          reply_markup: getPanelTypesKeyboard() 
-        });
+        return bot.sendMessage(chatId, '🛡 نوع پنل مورد نظر را انتخاب کنید:', { reply_markup: getPanelTypesKeyboard() });
       }
 
-      // ---- panel type selected ----
+      // ---- panel_type ----
       const panelTypeMatch = data.match(/^panel_type_(.+)$/);
       if (panelTypeMatch) {
         const panelType = panelTypeMatch[1];
-        if (!PANEL_TYPES[panelType]) {
-          return bot.sendMessage(chatId, '❌ نوع پنل نامعتبر است.');
-        }
+        if (!PANEL_TYPES[panelType]) return bot.sendMessage(chatId, '❌ نوع پنل نامعتبر است.');
         u.state = { action: 'selecting_duration', panelType };
         saveDB();
-        
         const panel = PANEL_TYPES[panelType];
         const cost = db.bot.settings.panelCosts[panelType] || panel.defaultCostPerDay;
         return bot.sendMessage(chatId, 
@@ -1116,51 +952,45 @@ async function startTelegramBot() {
         );
       }
 
-      // ---- panel duration selected ----
+      // ---- panel_days ----
       const durationMatch = data.match(/^panel_days_([^_]+)_(\d+|custom)$/);
       if (durationMatch) {
         const panelType = durationMatch[1];
         const duration = durationMatch[2];
-        
-        if (!PANEL_TYPES[panelType]) {
-          return bot.sendMessage(chatId, '❌ نوع پنل نامعتبر است.');
-        }
-        
+        if (!PANEL_TYPES[panelType]) return bot.sendMessage(chatId, '❌ نوع پنل نامعتبر است.');
         if (duration === 'custom') {
           u.state = { action: 'awaiting_custom_days', panelType };
           saveDB();
           return bot.sendMessage(chatId, '🔢 چند روز می‌خوای؟ (عدد را وارد کنید)');
         }
-        
         const days = Number(duration);
         return beginPanelPurchase(chatId, u, panelType, days);
       }
 
-      // ---- cancel panel ----
+      // ---- cancel_panel ----
       if (data === 'cancel_panel') {
         u.state = null;
         saveDB();
         return bot.sendMessage(chatId, '❌ خرید پنل لغو شد.', { reply_markup: mainMenuKeyboard(tgId) });
       }
 
-      // ---- renew reminder button ----
+      // ---- renew ----
       const renewMatch = data.match(/^renew_(.+)$/);
       if (renewMatch) {
         const userId = renewMatch[1];
         const result = extendLicenseUser(userId, 10);
-        if (result.error) return bot.sendMessage(chatId, '❌ این پنل دیگه پیدا نشد (شاید حذف شده).');
+        if (result.error) return bot.sendMessage(chatId, '❌ این پنل دیگه پیدا نشد.');
         const left = daysLeftOf(result.expireAt);
         return bot.sendMessage(chatId, '✅ پنل شما ۱۰ روز تمدید شد! الان ' + left + ' روز اعتبار داره. 🎉');
       }
 
-      // ================= OWNER-ONLY MENUS =================
+      // ================= OWNER-ONLY =================
       if (!isOwner(tgId)) return;
 
       if (data === 'owner_menu') return sendOwnerMenu(chatId);
       if (data === 'owner_stats') return sendOwnerStats(chatId);
       if (data === 'owner_settings') return sendOwnerSettings(chatId);
       if (data === 'owner_panel_settings') return sendPanelSettings(chatId);
-      if (data === 'owner_schedule') return sendScheduleMenu(chatId);
       if (data === 'owner_mass_message') {
         ownerSession.massMessage = true;
         return bot.sendMessage(chatId, '✍️ متن پیام همگانی را بنویسید:\n\n⚠️ برای تایید ارسال، دوباره پیام را با عبارت "تایید" در ابتدای آن بفرستید.');
@@ -1169,25 +999,19 @@ async function startTelegramBot() {
       if (data === 'owner_banned_list') return sendUsersListPage(chatId, buildBannedBotUserIds(), 0, true);
       if (data === 'owner_ban_history') return sendBanHistory(chatId, 0);
       
-      // NEW: Toggle bot (only for owner/admin)
       if (data === 'owner_toggle_bot') {
         const currentState = db.bot.settings.botEnabled;
         db.bot.settings.botEnabled = !currentState;
-        
         if (!db.bot.settings.botEnabled) {
-          // Turning OFF: stop the bot polling
           stopTelegramBot();
           db.bot.active = false;
           saveDB();
-          
-          // Send confirmation to owner
           await bot.sendMessage(chatId, 
             `✅ ربات با موفقیت **غیرفعال** شد.\n\n` +
             `کاربران عادی پیام زیر را دریافت می‌کنند:\n` +
             `"${db.bot.settings.botOffMessage || '🔴 ربات موقتاً غیرفعال شده است.'}"`
           );
         } else {
-          // Turning ON: start the bot
           try {
             await startTelegramBot();
             db.bot.active = true;
@@ -1195,14 +1019,13 @@ async function startTelegramBot() {
             await bot.sendMessage(chatId, '✅ ربات با موفقیت **فعال** شد.');
           } catch (e) {
             await bot.sendMessage(chatId, `❌ خطا در راه‌اندازی ربات: ${e.message}`);
-            // Revert the setting
             db.bot.settings.botEnabled = false;
             saveDB();
           }
         }
         return;
       }
-      
+
       if (data === 'owner_toggle_maintenance') {
         db.bot.settings.maintenanceMode = !db.bot.settings.maintenanceMode;
         saveDB();
@@ -1213,32 +1036,23 @@ async function startTelegramBot() {
       if ((m = data.match(/^ulpage_(\d+)$/))) return sendUsersListPage(chatId, buildAllBotUserIds(), Number(m[1]));
       if ((m = data.match(/^blpage_(\d+)$/))) return sendUsersListPage(chatId, buildBannedBotUserIds(), Number(m[1]), true);
       if ((m = data.match(/^bhpage_(\d+)$/))) return sendBanHistory(chatId, Number(m[1]));
-
       if ((m = data.match(/^ownuser_(.+)$/))) return sendUserProfile(chatId, m[1]);
 
-      // ================= Transfer coins handlers =================
+      // ---- transfer coins ----
       if ((m = data.match(/^transfer_coins_(.+)$/))) {
-        const targetId = m[1];
-        ownerSession.pendingTransfer = { targetId };
+        ownerSession.pendingTransfer = { targetId: m[1] };
         return bot.sendMessage(chatId, '💰 چند سکه می‌خواید به این کاربر بدید؟\n(عدد را وارد کنید)');
       }
-
-      // ================= Remove coins handlers =================
       if ((m = data.match(/^remove_coins_(.+)$/))) {
-        const targetId = m[1];
-        ownerSession.pendingRemove = { targetId };
+        ownerSession.pendingRemove = { targetId: m[1] };
         return bot.sendMessage(chatId, '💰 چند سکه می‌خواید از این کاربر کم کنید؟\n(عدد را وارد کنید)');
       }
-
-      // Quick transfer buttons
       if ((m = data.match(/^transfer_quick_(.+)_(\d+)$/))) {
         const targetId = m[1];
         const amount = parseInt(m[2], 10);
         await transferCoins(chatId, targetId, amount);
         return;
       }
-
-      // Quick remove buttons
       if ((m = data.match(/^remove_quick_(.+)_(\d+)$/))) {
         const targetId = m[1];
         const amount = parseInt(m[2], 10);
@@ -1246,60 +1060,26 @@ async function startTelegramBot() {
         return;
       }
 
-      // ---- delete scheduled message ----
-      if ((m = data.match(/^delete_schedule_(.+)$/))) {
-        const idx = db.bot.settings.scheduledMessages.findIndex(s => s.id === m[1]);
-        if (idx !== -1) {
-          if (scheduledJobs[m[1]]) {
-            scheduledJobs[m[1]].cancel();
-            delete scheduledJobs[m[1]];
-          }
-          db.bot.settings.scheduledMessages.splice(idx, 1);
-          saveDB();
-          return bot.sendMessage(chatId, '✅ پیام برنامه‌ریزی‌شده حذف شد.');
-        }
-        return bot.sendMessage(chatId, '❌ پیدا نشد.');
-      }
-
-      if ((m = data.match(/^toggle_schedule_(.+)$/))) {
-        const scheduled = db.bot.settings.scheduledMessages.find(s => s.id === m[1]);
-        if (scheduled) {
-          scheduled.active = !scheduled.active;
-          saveDB();
-          if (scheduled.active && db.bot.active && botInstance && db.bot.settings.botEnabled) {
-            scheduleMessage(scheduled);
-          } else if (scheduledJobs[m[1]]) {
-            scheduledJobs[m[1]].cancel();
-            delete scheduledJobs[m[1]];
-          }
-          return bot.sendMessage(chatId, `✅ پیام ${scheduled.active ? 'فعال' : 'غیرفعال'} شد.`);
-        }
-        return bot.sendMessage(chatId, '❌ پیدا نشد.');
-      }
-
-      // Ban handlers
+      // ---- ban ----
       if ((m = data.match(/^ban_start_(.+)$/))) {
-        const targetId = m[1];
+        ownerSession.pendingBan = { targetId: m[1] };
         return bot.sendMessage(chatId, 'مدت بن؟', {
           reply_markup: {
             inline_keyboard: [
-              [{ text: '♾ نامحدود', callback_data: 'ban_perm_' + targetId }],
-              [{ text: '📅 چند روزه', callback_data: 'ban_days_' + targetId }]
+              [{ text: '♾ نامحدود', callback_data: 'ban_perm_' + m[1] }],
+              [{ text: '📅 چند روزه', callback_data: 'ban_days_' + m[1] }]
             ]
           }
         });
       }
-
       if ((m = data.match(/^ban_perm_(.+)$/))) {
         ownerSession.pendingBan = { targetId: m[1], permanent: true };
         return bot.sendMessage(chatId, '📝 دلیل بن رو بنویس:');
       }
-
       if ((m = data.match(/^ban_days_(.+)$/))) {
         ownerSession.pendingBan = { targetId: m[1], permanent: false, awaitingDays: true };
         return bot.sendMessage(chatId, '🔢 چند روز بن بشه؟');
       }
-
       if (data === 'ban_confirm_yes') {
         const pending = ownerSession.pendingBanConfirm;
         if (!pending) return;
@@ -1322,13 +1102,11 @@ async function startTelegramBot() {
         ownerSession.pendingBanConfirm = null;
         return;
       }
-
       if (data === 'ban_confirm_no') {
         ownerSession.pendingBanConfirm = null;
         ownerSession.pendingBan = null;
         return bot.sendMessage(chatId, '❌ بن‌کردن لغو شد.');
       }
-
       if ((m = data.match(/^unban_(.+)$/))) {
         const target = db.bot.users[m[1]];
         if (target) {
@@ -1343,12 +1121,10 @@ async function startTelegramBot() {
         }
         return;
       }
-
       if ((m = data.match(/^msguser_(.+)$/))) {
         ownerSession.pendingMessageTarget = m[1];
         return bot.sendMessage(chatId, '✍️ متن پیام رو بنویس تا برای کاربر ارسال بشه:');
       }
-
       if (data === 'owner_search') {
         ownerSession.searching = true;
         return bot.sendMessage(chatId, '🔎 اسم یا یوزرنیم مورد نظر رو بفرست:');
@@ -1361,14 +1137,12 @@ async function startTelegramBot() {
   async function beginPanelPurchase(chatId, u, panelType, days) {
     const costPerDay = db.bot.settings.panelCosts[panelType] || PANEL_TYPES[panelType].defaultCostPerDay || 0.5;
     const cost = Math.ceil(days * costPerDay);
-    
     if ((u.coins || 0) < cost) {
       return bot.sendMessage(chatId,
         `❌ سکه کافی نداری!\n🪙 سکه فعلی: ${u.coins || 0}\n💰 سکه لازم: ${cost}\n\n` +
         'از دکمه «زیرمجموعه‌گیری» برای گرفتن سکه بیشتر استفاده کن.'
       );
     }
-    
     u.state = { action: 'awaiting_username', days, cost, panelType };
     saveDB();
     return bot.sendMessage(chatId, '👤 یک نام کاربری برای پنلت بفرست (فقط حروف/عدد انگلیسی، بدون فاصله):');
@@ -1381,16 +1155,11 @@ async function startTelegramBot() {
     const chatId = msg.chat.id;
     const text = msg.text.trim();
 
-    // Check if user is owner
-    if (!isOwner(tgId)) {
-      // For regular users: check if bot is available
-      if (!isBotAvailableForUsers()) {
-        const statusMsg = getBotStatusMessage();
-        return bot.sendMessage(chatId, statusMsg || '🔴 ربات در حال حاضر در دسترس نیست. لطفاً بعداً مراجعه کنید.');
-      }
+    if (!isOwner(tgId) && !isBotAvailableForUsers()) {
+      return bot.sendMessage(chatId, getBotStatusMessage() || '🔴 ربات در دسترس نیست.');
     }
 
-    // Owner replying to a forwarded support message
+    // Owner support reply
     if (isOwner(tgId) && msg.reply_to_message) {
       const targetId = db.bot.supportReplyMap[msg.reply_to_message.message_id];
       if (targetId) {
@@ -1399,43 +1168,30 @@ async function startTelegramBot() {
       }
     }
 
-    // Owner in the middle of mass messaging
+    // Owner mass message
     if (isOwner(tgId) && ownerSession.massMessage) {
       if (text.startsWith('تایید')) {
         ownerSession.massMessage = false;
         const messageToSend = text.replace('تایید', '').trim();
-        
-        if (!messageToSend) {
-          return bot.sendMessage(chatId, '❌ پیام نمی‌تواند خالی باشد.');
-        }
-        
+        if (!messageToSend) return bot.sendMessage(chatId, '❌ پیام نمی‌تواند خالی باشد.');
         const users = Object.values(db.bot.users);
-        let sent = 0;
-        let failed = 0;
-        
+        let sent = 0, failed = 0;
         await bot.sendMessage(chatId, `⏳ در حال ارسال پیام به ${users.length} کاربر...`);
-        
         for (const user of users) {
           try {
             await bot.sendMessage(user.id, messageToSend);
             sent++;
-          } catch (e) {
-            failed++;
-          }
+          } catch (e) { failed++; }
           await new Promise(resolve => setTimeout(resolve, 50));
         }
-        
-        return bot.sendMessage(chatId, `✅ پیام همگانی ارسال شد!\n\n✅ موفق: ${sent}\n❌ ناموفق: ${failed}\n👥 کل: ${users.length}`);
+        return bot.sendMessage(chatId, `✅ پیام همگانی ارسال شد!\n\n✅ موفق: ${sent}\n❌ ناموفق: ${failed}`);
       } else {
         ownerSession.massMessage = false;
-        return bot.sendMessage(chatId, 
-          '❌ برای تایید ارسال، دوباره پیام را با عبارت "تایید" در ابتدای آن بفرستید.\n\n' +
-          'مثال: "تایید سلام به همه کاربران"'
-        );
+        return bot.sendMessage(chatId, '❌ برای تایید، عبارت "تایید" را ابتدا بفرستید.');
       }
     }
 
-    // Owner in the middle of messaging a specific user
+    // Owner message to user
     if (isOwner(tgId) && ownerSession.pendingMessageTarget) {
       const targetId = ownerSession.pendingMessageTarget;
       ownerSession.pendingMessageTarget = null;
@@ -1443,43 +1199,35 @@ async function startTelegramBot() {
       return bot.sendMessage(chatId, '✅ پیام ارسال شد.');
     }
 
-    // ================= Owner transferring coins =================
+    // Owner transfer coins
     if (isOwner(tgId) && ownerSession.pendingTransfer) {
       const amount = parseInt(text, 10);
-      if (!amount || amount <= 0) {
-        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
-      }
-      
+      if (!amount || amount <= 0) return bot.sendMessage(chatId, '❌ عدد معتبر وارد کنید.');
       const targetId = ownerSession.pendingTransfer.targetId;
       ownerSession.pendingTransfer = null;
       await transferCoins(chatId, targetId, amount);
       return;
     }
 
-    // ================= Owner removing coins =================
+    // Owner remove coins
     if (isOwner(tgId) && ownerSession.pendingRemove) {
       const amount = parseInt(text, 10);
-      if (!amount || amount <= 0) {
-        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
-      }
-      
+      if (!amount || amount <= 0) return bot.sendMessage(chatId, '❌ عدد معتبر وارد کنید.');
       const targetId = ownerSession.pendingRemove.targetId;
       ownerSession.pendingRemove = null;
       await removeCoins(chatId, targetId, amount);
       return;
     }
 
-    // Owner ban flow: entering number of days
-    if (isOwner(tgId) && ownerSession.pendingBan && ownerSession.pendingBan.awaitingDays) {
-      const days = parseInt(text, 10);
-      if (!days || days <= 0) return bot.sendMessage(chatId, '❌ یه عدد معتبر بفرست (مثلاً 3):');
-      ownerSession.pendingBan.days = days;
-      ownerSession.pendingBan.awaitingDays = false;
-      return bot.sendMessage(chatId, '📝 حالا دلیل بن رو بنویس:');
-    }
-
-    // Owner ban flow: entering the reason
-    if (isOwner(tgId) && ownerSession.pendingBan && !ownerSession.pendingBan.awaitingDays) {
+    // Owner ban
+    if (isOwner(tgId) && ownerSession.pendingBan) {
+      if (ownerSession.pendingBan.awaitingDays) {
+        const days = parseInt(text, 10);
+        if (!days || days <= 0) return bot.sendMessage(chatId, '❌ عدد معتبر بفرست:');
+        ownerSession.pendingBan.days = days;
+        ownerSession.pendingBan.awaitingDays = false;
+        return bot.sendMessage(chatId, '📝 دلیل بن رو بنویس:');
+      }
       const pending = ownerSession.pendingBan;
       pending.reason = text;
       ownerSession.pendingBanConfirm = pending;
@@ -1493,7 +1241,7 @@ async function startTelegramBot() {
       );
     }
 
-    // Owner searching the user list
+    // Owner search
     if (isOwner(tgId) && ownerSession.searching) {
       ownerSession.searching = false;
       const query = text.toLowerCase().replace('@', '');
@@ -1501,7 +1249,7 @@ async function startTelegramBot() {
         (bu.username && bu.username.toLowerCase().includes(query)) ||
         (bu.firstName && bu.firstName.toLowerCase().includes(query))
       );
-      if (!matches.length) return bot.sendMessage(chatId, '❌ کسی با این مشخصات پیدا نشد.');
+      if (!matches.length) return bot.sendMessage(chatId, '❌ کسی پیدا نشد.');
       return sendUsersListPage(chatId, matches.map((x) => x.id), 0);
     }
 
@@ -1509,7 +1257,7 @@ async function startTelegramBot() {
     if (isBanned(u)) return bot.sendMessage(chatId, banMessageText(u));
     if (!u.state) return;
 
-    // ---- support message from a regular user ----
+    // ---- support message ----
     if (u.state.action === 'awaiting_support_message') {
       u.state = null;
       saveDB();
@@ -1521,47 +1269,43 @@ async function startTelegramBot() {
         saveDB();
         return bot.sendMessage(chatId, '✅ پیامت برای پشتیبانی ارسال شد، منتظر پاسخ باش.');
       } catch (e) {
-        return bot.sendMessage(chatId, '❌ ارسال پیام با خطا مواجه شد، بعداً دوباره امتحان کن.');
+        return bot.sendMessage(chatId, '❌ ارسال پیام با خطا مواجه شد.');
       }
     }
 
-    // ---- custom day count ----
+    // ---- custom days ----
     if (u.state.action === 'awaiting_custom_days') {
       const days = parseInt(text, 10);
-      if (!days || days <= 0) {
-        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
-      }
+      if (!days || days <= 0) return bot.sendMessage(chatId, '❌ عدد معتبر وارد کنید.');
       const panelType = u.state.panelType || 'wireguard';
       u.state = null;
       saveDB();
       return beginPanelPurchase(chatId, u, panelType, days);
     }
 
-    // ---- choosing a panel username ----
+    // ---- username ----
     if (u.state.action === 'awaiting_username') {
       if (!/^[a-zA-Z0-9_]{3,20}$/.test(text)) {
-        return bot.sendMessage(chatId, '❌ نام کاربری باید فقط حروف/عدد انگلیسی و بین 3 تا 20 کاراکتر باشه. دوباره بفرست:');
+        return bot.sendMessage(chatId, '❌ نام کاربری باید 3-20 کاراکتر انگلیسی باشد.');
       }
       if (text === ADMIN_USERNAME || db.users.some((x) => x.username === text)) {
-        return bot.sendMessage(chatId, '❌ این نام کاربری قبلاً استفاده شده. یه اسم دیگه بفرست:');
+        return bot.sendMessage(chatId, '❌ این نام کاربری قبلاً استفاده شده.');
       }
       u.state.username = text;
       u.state.action = 'awaiting_password';
       saveDB();
-      return bot.sendMessage(chatId, '🔑 حالا یک رمز عبور بفرست (حداقل 4 کاراکتر):');
+      return bot.sendMessage(chatId, '🔑 رمز عبور بفرست (حداقل 4 کاراکتر):');
     }
 
-    // ---- choosing a panel password -> issue the panel ----
+    // ---- password ----
     if (u.state.action === 'awaiting_password') {
-      if (text.length < 4) {
-        return bot.sendMessage(chatId, '❌ رمز باید حداقل 4 کاراکتر باشه. دوباره بفرست:');
-      }
+      if (text.length < 4) return bot.sendMessage(chatId, '❌ رمز حداقل 4 کاراکتر باشد.');
       const state = u.state;
       const created = createLicenseUser(state.username, text, state.days);
       if (created.error) {
         u.state = null;
         saveDB();
-        return bot.sendMessage(chatId, '❌ مشکلی پیش اومد (' + created.error + ')، دوباره از اول از دکمه «دریافت پنل» شروع کن.');
+        return bot.sendMessage(chatId, '❌ خطا: ' + created.error);
       }
       u.coins = (u.coins || 0) - state.cost;
       u.panels.push({ 
@@ -1576,46 +1320,35 @@ async function startTelegramBot() {
       saveDB();
 
       const panelName = PANEL_TYPES[state.panelType] ? PANEL_TYPES[state.panelType].name : 'پنل';
-      
       await bot.sendMessage(chatId,
-        `✅ ${panelName} با موفقیت ساخته شد! 🎉\n\n` +
-        '🔗 لینک پنل: ' + PANEL_URL +
+        `✅ ${panelName} ساخته شد! 🎉\n\n` +
+        '🔗 لینک: ' + PANEL_URL +
         '\n👤 یوزرنیم: ' + state.username +
-        '\n🔑 رمز عبور: ' + text +
-        '\n📅 اعتبار: ' + state.days + ' روز' +
-        '\n\n⚠️ این پنل رو نفروش، در غیر این صورت از ربات بن می‌شی.'
+        '\n🔑 رمز: ' + text +
+        '\n📅 اعتبار: ' + state.days + ' روز'
       );
-
       bot.sendMessage(ownerIdStr(),
-        `📥 کاربر ${nameOf(u)} (آیدی: ${tgId}) یک ${panelName} ${state.days} روزه دریافت کرد.\n👤 یوزرنیم پنل: ${state.username}`
+        `📥 کاربر ${nameOf(u)} یک ${panelName} ${state.days} روزه دریافت کرد.\n👤 ${state.username}`
       ).catch(() => {});
-      return;
     }
   });
 
-  // ================= Owner menu senders =================
+  // ================= Owner menu functions =================
   function sendOwnerMenu(chatId) {
     const status = db.bot.settings.botEnabled ? '✅ فعال' : '❌ غیرفعال';
     const maintenance = db.bot.settings.maintenanceMode ? '🔧 فعال' : '✅ غیرفعال';
-    
-    return bot.sendMessage(
-      chatId, 
-      `👑 پنل مدیریت ربات\n\n` +
-      `🪙 وضعیت سکه شما: **نامحدود** ♾️\n` +
-      `🤖 وضعیت ربات: ${status}\n` +
-      `🔧 حالت تعمیرات: ${maintenance}\n\n` +
-      `شما می‌توانید به هر کاربری هر مقدار سکه که می‌خواید بدید یا کم کنید.`,
+    return bot.sendMessage(chatId, 
+      `👑 پنل مدیریت\n\n🤖 وضعیت: ${status}\n🔧 تعمیرات: ${maintenance}\n\n🪙 شما سکه نامحدود دارید.`,
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: '📊 وضعیت ربات', callback_data: 'owner_stats' }],
-            [{ text: '⚙️ تنظیمات ربات', callback_data: 'owner_settings' }],
+            [{ text: '📊 وضعیت', callback_data: 'owner_stats' }],
+            [{ text: '⚙️ تنظیمات', callback_data: 'owner_settings' }],
             [{ text: '📋 تنظیمات پنل‌ها', callback_data: 'owner_panel_settings' }],
-            [{ text: '📅 پیام‌های زمان‌بندی‌شده', callback_data: 'owner_schedule' }],
-            [{ text: '📨 ارسال پیام همگانی', callback_data: 'owner_mass_message' }],
-            [{ text: '👥 لیست کاربران', callback_data: 'owner_users_list' }, { text: '🔎 جستجو', callback_data: 'owner_search' }],
+            [{ text: '📨 پیام همگانی', callback_data: 'owner_mass_message' }],
+            [{ text: '👥 کاربران', callback_data: 'owner_users_list' }, { text: '🔎 جستجو', callback_data: 'owner_search' }],
             [{ text: '🔒 بن‌شده‌ها', callback_data: 'owner_banned_list' }],
-            [{ text: '🗂 بن‌های قبلی', callback_data: 'owner_ban_history' }],
+            [{ text: '🗂 تاریخچه بن', callback_data: 'owner_ban_history' }],
             [{ text: '🔄 غیرفعال کردن ربات', callback_data: 'owner_toggle_bot' }],
             [{ text: '🔧 حالت تعمیرات', callback_data: 'owner_toggle_maintenance' }]
           ]
@@ -1627,177 +1360,107 @@ async function startTelegramBot() {
   function sendOwnerStats(chatId) {
     const all = Object.values(db.bot.users);
     const total = all.length;
-    const joined = all.filter((x) => x.joinedChannels).length;
-    const gotPanel = all.filter((x) => x.panels && x.panels.length).length;
-    const bannedNow = all.filter((x) => isBanned(x)).length;
+    const joined = all.filter(x => x.joinedChannels).length;
+    const gotPanel = all.filter(x => x.panels && x.panels.length).length;
+    const bannedNow = all.filter(x => isBanned(x)).length;
     const totalCoins = all.reduce((sum, x) => sum + (x.coins || 0), 0);
-    
     return bot.sendMessage(chatId,
-      '📊 وضعیت ربات\n\n' +
-      '👥 کل کاربران: ' + total + ' نفر' +
-      '\n✅ عضو کانال‌ها: ' + joined + ' نفر' +
-      '\n📦 دریافت‌کننده‌ی پنل: ' + gotPanel + ' نفر' +
-      '\n🚫 بن‌شده الان: ' + bannedNow + ' نفر' +
-      '\n🪙 کل سکه‌ها: ' + totalCoins + ' سکه' +
-      '\n\n🪙 شما به عنوان مالک سکه نامحدود دارید ♾️'
+      '📊 وضعیت\n\n👥 کل: ' + total + '\n✅ عضو کانال: ' + joined + 
+      '\n📦 پنل دار: ' + gotPanel + '\n🚫 بن: ' + bannedNow + 
+      '\n🪙 کل سکه: ' + totalCoins
     );
   }
 
   function sendOwnerSettings(chatId) {
     const referralCoins = db.bot.settings.referralCoins || 1;
     const botOffMessage = db.bot.settings.botOffMessage || '🔴 ربات موقتاً غیرفعال شده است.';
-    
     return bot.sendMessage(chatId,
-      `⚙️ تنظیمات ربات\n\n` +
-      `🪙 سکه هر رفرال: ${referralCoins} سکه\n` +
-      `📝 پیام خاموشی ربات:\n${botOffMessage}\n\n` +
-      `برای تغییر سکه هر رفرال، عدد جدید را بفرستید.\n` +
-      `برای تغییر پیام خاموشی، عبارت "پیام خاموشی:" را ابتدا بفرستید.`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🔙 بازگشت به منوی اصلی', callback_data: 'owner_menu' }]
-          ]
-        }
-      }
+      `⚙️ تنظیمات\n\n🪙 سکه هر رفرال: ${referralCoins}\n📝 پیام خاموشی:\n${botOffMessage}\n\n` +
+      `برای تغییر سکه رفرال: عدد جدید بفرستید\n` +
+      `برای تغییر پیام خاموشی: "پیام خاموشی: متن جدید"`,
+      { reply_markup: { inline_keyboard: [[{ text: '🔙 بازگشت', callback_data: 'owner_menu' }]] } }
     );
   }
 
   function sendPanelSettings(chatId) {
     let message = '📋 تنظیمات پنل‌ها\n\n';
     const rows = [];
-    
     Object.keys(PANEL_TYPES).forEach(key => {
       const panel = PANEL_TYPES[key];
       const cost = db.bot.settings.panelCosts[key] || panel.defaultCostPerDay;
       message += `${panel.emoji} ${panel.name}: ${cost} سکه در روز\n`;
-      rows.push([{ 
-        text: `✏️ ${panel.name}`, 
-        callback_data: `edit_panel_${key}` 
-      }]);
+      rows.push([{ text: `✏️ ${panel.name}`, callback_data: `edit_panel_${key}` }]);
     });
-    
-    message += '\nبرای تغییر هزینه هر پنل، دکمه مربوطه را بزنید.';
-    rows.push([{ text: '🔙 بازگشت به منوی اصلی', callback_data: 'owner_menu' }]);
-    
+    rows.push([{ text: '🔙 بازگشت', callback_data: 'owner_menu' }]);
     return bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: rows } });
   }
 
-  function sendScheduleMenu(chatId) {
-    const scheduled = db.bot.settings.scheduledMessages || [];
-    
-    if (!scheduled.length) {
-      return bot.sendMessage(chatId,
-        '📅 هیچ پیام زمان‌بندی‌شده‌ای وجود ندارد.\n\n' +
-        'برای اضافه کردن پیام جدید، به این فرمت بفرستید:\n' +
-        'cron|پیام\n\n' +
-        'مثال: "0 12 * * 3|سلام به همه کاربران" (هر سه‌شنبه ساعت 12)\n\n' +
-        '⏰ فرمت cron: دقیقه ساعت روز ماه روز_هفته\n' +
-        'مثال: 0 12 * * 3 = سه‌شنبه‌ها ساعت 12\n' +
-        '0 9 * * * = هر روز ساعت 9 صبح',
-        { reply_markup: { inline_keyboard: [[{ text: '🔙 بازگشت', callback_data: 'owner_menu' }]] } }
-      );
-    }
-    
-    let message = '📅 پیام‌های زمان‌بندی‌شده:\n\n';
-    const rows = [];
-    
-    scheduled.forEach((s, index) => {
-      const status = s.active ? '✅' : '❌';
-      message += `${index + 1}. ${status} ${s.cron}\n`;
-      message += `📝 ${s.message.substring(0, 50)}...\n\n`;
-      rows.push([
-        { text: `${s.active ? '⏸' : '▶️'}`, callback_data: `toggle_schedule_${s.id}` },
-        { text: '🗑', callback_data: `delete_schedule_${s.id}` }
-      ]);
-    });
-    
-    rows.push([{ text: '➕ افزودن پیام جدید', callback_data: 'add_schedule' }]);
-    rows.push([{ text: '🔙 بازگشت به منوی اصلی', callback_data: 'owner_menu' }]);
-    
-    return bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: rows } });
-  }
-
-  // Handle adding schedule and settings from text
+  // Handle settings updates from text
   bot.on('message', async (msg) => {
     if (!msg.text) return;
     const tgId = String(msg.from.id);
     const chatId = msg.chat.id;
     const text = msg.text.trim();
-    
     if (!isOwner(tgId)) return;
-    
+
     // Handle bot off message update
     if (text.startsWith('پیام خاموشی:')) {
       const newMessage = text.replace('پیام خاموشی:', '').trim();
       if (newMessage) {
         db.bot.settings.botOffMessage = newMessage;
         saveDB();
-        return bot.sendMessage(chatId, `✅ پیام خاموشی ربات با موفقیت تغییر کرد:\n\n${newMessage}`);
-      } else {
-        return bot.sendMessage(chatId, '❌ پیام نمی‌تواند خالی باشد.');
+        return bot.sendMessage(chatId, `✅ پیام خاموشی تغییر کرد:\n\n${newMessage}`);
       }
+      return bot.sendMessage(chatId, '❌ پیام نمی‌تواند خالی باشد.');
     }
-    
+
     // Handle referral coins setting
     if (ownerSession.settingReferralCoins) {
       ownerSession.settingReferralCoins = false;
       const coins = parseInt(text, 10);
-      if (!coins || coins <= 0) {
-        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
-      }
+      if (!coins || coins <= 0) return bot.sendMessage(chatId, '❌ عدد معتبر وارد کنید.');
       db.bot.settings.referralCoins = coins;
       saveDB();
-      return bot.sendMessage(chatId, `✅ سکه هر رفرال به ${coins} سکه تغییر کرد.`);
+      return bot.sendMessage(chatId, `✅ سکه هر رفرال به ${coins} تغییر کرد.`);
     }
-    
+
     // Handle panel cost editing
     if (ownerSession.editingPanel) {
       const panelType = ownerSession.editingPanel;
       ownerSession.editingPanel = null;
       const cost = parseFloat(text);
-      if (!cost || cost <= 0) {
-        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
-      }
+      if (!cost || cost <= 0) return bot.sendMessage(chatId, '❌ عدد معتبر وارد کنید.');
       db.bot.settings.panelCosts[panelType] = cost;
       saveDB();
       const panel = PANEL_TYPES[panelType];
-      return bot.sendMessage(chatId, `✅ هزینه ${panel.name} به ${cost} سکه در روز تغییر کرد.`);
+      return bot.sendMessage(chatId, `✅ هزینه ${panel.name} به ${cost} سکه تغییر کرد.`);
     }
-    
-    // Handle schedule creation
-    if (text.includes('|')) {
-      const parts = text.split('|');
-      if (parts.length >= 2) {
-        const cron = parts[0].trim();
-        const message = parts.slice(1).join('|').trim();
-        
-        try {
-          schedule.scheduleJob(cron, function() {});
-          
-          const scheduled = {
-            id: genId('sch'),
-            cron: cron,
-            message: message,
-            active: true,
-            createdAt: Date.now()
-          };
-          
-          db.bot.settings.scheduledMessages.push(scheduled);
-          saveDB();
-          
-          if (db.bot.active && botInstance && db.bot.settings.botEnabled) {
-            scheduleMessage(scheduled);
-          }
-          
-          return bot.sendMessage(chatId, '✅ پیام زمان‌بندی‌شده با موفقیت اضافه شد!');
-        } catch (e) {
-          return bot.sendMessage(chatId, '❌ فرمت cron نامعتبر است. لطفاً دوباره امتحان کنید.');
-        }
+
+    // Check if it's a referral coins setting
+    if (text.match(/^\d+$/) && !ownerSession.editingPanel) {
+      ownerSession.settingReferralCoins = false;
+      const coins = parseInt(text, 10);
+      if (coins > 0) {
+        db.bot.settings.referralCoins = coins;
+        saveDB();
+        return bot.sendMessage(chatId, `✅ سکه هر رفرال به ${coins} تغییر کرد.`);
       }
     }
   });
 
+  // Callback for editing panel
+  bot.on('callback_query', async (query) => {
+    // ... ادامه کد قبلی
+    const m = query.data.match(/^edit_panel_(.+)$/);
+    if (m && isOwner(query.from.id)) {
+      const panelType = m[1];
+      ownerSession.editingPanel = panelType;
+      await bot.answerCallbackQuery(query.id);
+      return bot.sendMessage(query.message.chat.id, `💰 هزینه جدید برای ${PANEL_TYPES[panelType].name} را وارد کنید:`);
+    }
+  });
+
+  // ================= User list functions =================
   function buildAllBotUserIds() {
     return Object.keys(db.bot.users).sort((a, b) => db.bot.users[b].createdAt - db.bot.users[a].createdAt);
   }
@@ -1812,25 +1475,21 @@ async function startTelegramBot() {
     const totalPages = Math.max(1, Math.ceil(ids.length / PAGE_SIZE));
     page = Math.max(0, Math.min(page, totalPages - 1));
     const pageIds = ids.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-
     if (!ids.length) {
-      return bot.sendMessage(chatId, isBannedList ? '✅ هیچ کاربر بن‌شده‌ای وجود نداره.' : '📭 هنوز کسی ربات رو استارت نکرده.');
+      return bot.sendMessage(chatId, isBannedList ? '✅ هیچ کاربر بن‌شده‌ای نیست.' : '📭 کاربری وجود ندارد.');
     }
-
     const rows = pageIds.map((id) => {
       const bu = db.bot.users[id];
-      const label = (bu.firstName || 'کاربر') + (bu.username ? ' (@' + bu.username + ')' : ' (' + id + ')');
+      const label = (bu.firstName || 'کاربر') + (bu.username ? ' (@' + bu.username + ')' : '');
       return [{ text: (isBanned(bu) ? '🚫 ' : '') + label, callback_data: 'ownuser_' + id }];
     });
-
     const navRow = [];
     const pagePrefix = isBannedList ? 'blpage_' : 'ulpage_';
     if (page > 0) navRow.push({ text: '◀️ قبلی', callback_data: pagePrefix + (page - 1) });
-    navRow.push({ text: '📄 ' + (page + 1) + '/' + totalPages, callback_data: 'noop' });
+    navRow.push({ text: `📄 ${page + 1}/${totalPages}`, callback_data: 'noop' });
     if (page < totalPages - 1) navRow.push({ text: 'بعدی ▶️', callback_data: pagePrefix + (page + 1) });
     rows.push(navRow);
-
-    return bot.sendMessage(chatId, isBannedList ? '🔒 کاربران بن‌شده:' : '👥 لیست کاربران ربات:', { reply_markup: { inline_keyboard: rows } });
+    return bot.sendMessage(chatId, isBannedList ? '🔒 کاربران بن‌شده:' : '👥 کاربران:', { reply_markup: { inline_keyboard: rows } });
   }
 
   function sendUserProfile(chatId, targetId) {
@@ -1842,31 +1501,26 @@ async function startTelegramBot() {
       '\n🆔 آیدی: ' + bu.id +
       '\n🔗 یوزرنیم: ' + (bu.username ? '@' + bu.username : 'ندارد') +
       '\n🪙 سکه: ' + (bu.coins || 0) +
-      '\n👥 زیرمجموعه: ' + bu.referrals.length + ' نفر' +
-      '\n📂 پنل‌های دریافتی: ' + bu.panels.length + ' عدد' +
-      '\n🚦 وضعیت: ' + (banned ? '🚫 بن (' + (bu.banPermanent ? 'نامحدود' : Math.max(0, Math.ceil((bu.banUntil - Date.now()) / 86400000)) + ' روز مونده') + ')' : '✅ آزاد');
+      '\n👥 زیرمجموعه: ' + bu.referrals.length +
+      '\n📂 پنل‌ها: ' + bu.panels.length +
+      '\n🚦 وضعیت: ' + (banned ? '🚫 بن شده' : '✅ آزاد');
 
     const rows = [];
     if (banned) rows.push([{ text: '✅ رفع بن', callback_data: 'unban_' + bu.id }]);
     else rows.push([{ text: '🚫 بن کردن', callback_data: 'ban_start_' + bu.id }]);
     rows.push([{ text: '✉️ ارسال پیام', callback_data: 'msguser_' + bu.id }]);
-    
-    // Transfer coins buttons
     rows.push([
       { text: '💰 +10', callback_data: 'transfer_quick_' + bu.id + '_10' },
       { text: '💰 +50', callback_data: 'transfer_quick_' + bu.id + '_50' },
       { text: '💰 +100', callback_data: 'transfer_quick_' + bu.id + '_100' }
     ]);
     rows.push([{ text: '💰 انتقال دلخواه', callback_data: 'transfer_coins_' + bu.id }]);
-    
-    // Remove coins buttons
     rows.push([
       { text: '💰 -10', callback_data: 'remove_quick_' + bu.id + '_10' },
       { text: '💰 -50', callback_data: 'remove_quick_' + bu.id + '_50' },
       { text: '💰 -100', callback_data: 'remove_quick_' + bu.id + '_100' }
     ]);
     rows.push([{ text: '💰 کم کردن دلخواه', callback_data: 'remove_coins_' + bu.id }]);
-
     return bot.sendMessage(chatId, text, { reply_markup: { inline_keyboard: rows } });
   }
 
@@ -1878,31 +1532,27 @@ async function startTelegramBot() {
       });
     });
     entries.sort((a, b) => b.entry.bannedAt - a.entry.bannedAt);
-
-    if (!entries.length) return bot.sendMessage(chatId, '📭 تا الان هیچ بنی ثبت نشده.');
-
+    if (!entries.length) return bot.sendMessage(chatId, '📭 تاریخچه بن خالی است.');
     const PAGE = 5;
     const totalPages = Math.max(1, Math.ceil(entries.length / PAGE));
     page = Math.max(0, Math.min(page, totalPages - 1));
     const slice = entries.slice(page * PAGE, page * PAGE + PAGE);
-
     const lines = slice.map(({ user, entry }) => {
       const date = new Date(entry.bannedAt).toLocaleDateString('fa-IR');
       const status = entry.unbannedAt ? '✅ رفع‌شده' : '🚫 فعال';
-      return '👤 ' + nameOf(user) + '\n📝 دلیل: ' + entry.reason + '\n⏳ مدت: ' + (entry.days === 'permanent' ? 'نامحدود' : entry.days + ' روز') + '\n📅 تاریخ: ' + date + '\n📌 وضعیت: ' + status;
+      return '👤 ' + nameOf(user) + '\n📝 ' + entry.reason + '\n⏳ ' + (entry.days === 'permanent' ? 'نامحدود' : entry.days + ' روز') + '\n📅 ' + date + '\n📌 ' + status;
     });
-
     const navRow = [];
     if (page > 0) navRow.push({ text: '◀️ قبلی', callback_data: 'bhpage_' + (page - 1) });
-    navRow.push({ text: '📄 ' + (page + 1) + '/' + totalPages, callback_data: 'noop' });
+    navRow.push({ text: `📄 ${page + 1}/${totalPages}`, callback_data: 'noop' });
     if (page < totalPages - 1) navRow.push({ text: 'بعدی ▶️', callback_data: 'bhpage_' + (page + 1) });
-
-    return bot.sendMessage(chatId, '🗂 تاریخچه بن‌ها:\n\n' + lines.join('\n\n'), { reply_markup: { inline_keyboard: [navRow] } });
+    return bot.sendMessage(chatId, '🗂 تاریخچه بن:\n\n' + lines.join('\n\n'), { reply_markup: { inline_keyboard: [navRow] } });
   }
 
   // ---------------- renewal reminders ----------------
   renewalCheckTimer = setInterval(() => {
     try {
+      if (!isBotAvailableForUsers()) return;
       Object.values(db.bot.users).forEach((bu) => {
         (bu.panels || []).forEach((p) => {
           const acct = db.users.find((x) => x.id === p.userId);
@@ -1911,12 +1561,10 @@ async function startTelegramBot() {
           if (left <= 3 && left >= 0 && p.lastNotifiedDay !== left) {
             p.lastNotifiedDay = left;
             saveDB();
-            if (isBotAvailableForUsers()) {
-              bot.sendMessage(bu.id,
-                '⏳ پنل «' + p.username + '» فقط ' + left + ' روز دیگه اعتبار داره!\nبرای تمدید از دکمه زیر استفاده کن 👇',
-                { reply_markup: { inline_keyboard: [[{ text: '🔄 تمدید (+۱۰ روز)', callback_data: 'renew_' + p.userId }]] } }
-              ).catch(() => {});
-            }
+            bot.sendMessage(bu.id,
+              '⏳ پنل «' + p.username + '» فقط ' + left + ' روز دیگه اعتبار داره!\nبرای تمدید از دکمه زیر استفاده کن 👇',
+              { reply_markup: { inline_keyboard: [[{ text: '🔄 تمدید (+۱۰ روز)', callback_data: 'renew_' + p.userId }]] } }
+            ).catch(() => {});
           }
         });
       });
@@ -1925,17 +1573,10 @@ async function startTelegramBot() {
     }
   }, 30 * 60 * 1000);
 
-  // Schedule all existing messages
-  (db.bot.settings.scheduledMessages || []).forEach(s => {
-    if (s.active && db.bot.settings.botEnabled) {
-      scheduleMessage(s);
-    }
-  });
-
   console.log('Telegram bot started. Username: @' + botUsername);
 }
 
-// Auto-start the bot on boot if it was previously active
+// Auto-start the bot on boot
 if (db.bot && db.bot.active && db.bot.token && db.bot.ownerId && db.bot.settings.botEnabled) {
   startTelegramBot().catch((err) => {
     console.error('Failed to auto-start Telegram bot:', err.message || err);
