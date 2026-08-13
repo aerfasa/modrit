@@ -4,8 +4,7 @@
 // - Multiple panel types (WireGuard, Pasargard, etc.)
 // - Referral value management (set how many coins per referral)
 // - Mass messaging to all users (scheduled or immediate)
-// - Bot on/off toggle
-// - Coin management (add/remove coins from users)
+// - Bot on/off toggle (only for admin, users see maintenance message)
 
 const express = require('express');
 const path = require('path');
@@ -87,14 +86,7 @@ const PANEL_TYPES = {
     emoji: '🏛',
     defaultCostPerDay: 1.5,
     description: 'پنل اختصاصی پاسارگارد با سرعت بالا'
-  },
-  // می‌تونی پنل‌های جدید اضافه کنی
-  // vip: {
-  //   name: '👑 پنل VIP',
-  //   emoji: '👑',
-  //   defaultCostPerDay: 2.0,
-  //   description: 'پنل ویژه VIP'
-  // }
+  }
 };
 
 // ---------- Tiny JSON-file database ----------
@@ -113,17 +105,16 @@ function freshDB() {
       active: false,
       users: {},
       supportReplyMap: {},
-      // NEW: Bot settings
       settings: {
-        referralCoins: 1, // هر رفرال چند سکه میده
+        referralCoins: 1,
         panelCosts: {
           wireguard: 0.5,
           pasargard: 1.5
-          // vip: 2.0
         },
-        scheduledMessages: [], // [{id, cron, message, active}]
+        scheduledMessages: [],
         botEnabled: true,
-        maintenanceMode: false
+        maintenanceMode: false,
+        botOffMessage: '🔴 ربات موقتاً غیرفعال شده است.\nلطفاً بعداً مراجعه کنید.\n\nمدیریت: برای فعال‌سازی مجدد به پنل مدیریت مراجعه کنید.'
       }
     }
   };
@@ -148,6 +139,7 @@ function loadDB() {
     if (!parsed.bot.settings) parsed.bot.settings = freshDB().bot.settings;
     if (!parsed.bot.settings.panelCosts) parsed.bot.settings.panelCosts = { wireguard: 0.5, pasargard: 1.5 };
     if (!Array.isArray(parsed.bot.settings.scheduledMessages)) parsed.bot.settings.scheduledMessages = [];
+    if (!parsed.bot.settings.botOffMessage) parsed.bot.settings.botOffMessage = '🔴 ربات موقتاً غیرفعال شده است.\nلطفاً بعداً مراجعه کنید.';
     return parsed;
   } catch (e) {
     const fresh = freshDB();
@@ -519,7 +511,7 @@ app.post('/api/admin/bot', adminOnly, (req, res) => {
 
 // NEW: Admin bot settings API
 app.post('/api/admin/bot/settings', adminOnly, (req, res) => {
-  const { referralCoins, panelCosts, botEnabled, maintenanceMode } = req.body || {};
+  const { referralCoins, panelCosts, botEnabled, maintenanceMode, botOffMessage } = req.body || {};
   
   if (referralCoins !== undefined) {
     db.bot.settings.referralCoins = Number(referralCoins);
@@ -537,6 +529,10 @@ app.post('/api/admin/bot/settings', adminOnly, (req, res) => {
   
   if (maintenanceMode !== undefined) {
     db.bot.settings.maintenanceMode = !!maintenanceMode;
+  }
+  
+  if (botOffMessage !== undefined) {
+    db.bot.settings.botOffMessage = String(botOffMessage);
   }
   
   saveDB();
@@ -560,7 +556,7 @@ app.post('/api/admin/bot/schedule', adminOnly, (req, res) => {
   saveDB();
   
   // Schedule the message if bot is active
-  if (db.bot.active && botInstance) {
+  if (db.bot.active && botInstance && db.bot.settings.botEnabled) {
     scheduleMessage(scheduled);
   }
   
@@ -589,7 +585,7 @@ app.post('/api/admin/bot/schedule/:id/toggle', adminOnly, (req, res) => {
   scheduled.active = !scheduled.active;
   saveDB();
   
-  if (scheduled.active && db.bot.active && botInstance) {
+  if (scheduled.active && db.bot.active && botInstance && db.bot.settings.botEnabled) {
     scheduleMessage(scheduled);
   } else if (scheduledJobs[req.params.id]) {
     scheduledJobs[req.params.id].cancel();
@@ -619,6 +615,7 @@ app.post('/api/admin/bot/start', adminOnly, async (req, res) => {
 app.post('/api/admin/bot/stop', adminOnly, (req, res) => {
   stopTelegramBot();
   db.bot.active = false;
+  db.bot.settings.botEnabled = false;
   saveDB();
   res.json({ ok: true });
 });
@@ -645,7 +642,6 @@ app.post('/api/admin/bot/mass-message', adminOnly, async (req, res) => {
       } catch (e) {
         failed++;
       }
-      // Rate limiting
       await new Promise(resolve => setTimeout(resolve, 50));
     }
     
@@ -689,7 +685,7 @@ function scheduleMessage(scheduled) {
   
   try {
     const job = schedule.scheduleJob(scheduled.cron, async function() {
-      if (!db.bot.active || !botInstance || !scheduled.active) return;
+      if (!db.bot.active || !botInstance || !scheduled.active || !db.bot.settings.botEnabled) return;
       
       const users = Object.values(db.bot.users);
       for (const user of users) {
@@ -800,6 +796,22 @@ async function startTelegramBot() {
       '\n\n💬 برای پیگیری با پشتیبانی در ارتباط باشید.';
   }
 
+  // NEW: Function to check if bot is available for users
+  function isBotAvailableForUsers() {
+    return db.bot.settings.botEnabled && !db.bot.settings.maintenanceMode && db.bot.active;
+  }
+
+  // NEW: Get bot status message for users
+  function getBotStatusMessage() {
+    if (!db.bot.settings.botEnabled) {
+      return db.bot.settings.botOffMessage || '🔴 ربات موقتاً غیرفعال شده است.\nلطفاً بعداً مراجعه کنید.';
+    }
+    if (db.bot.settings.maintenanceMode) {
+      return '🔧 ربات در حالت تعمیرات است. به زودی فعال می‌شود.';
+    }
+    return null;
+  }
+
   async function checkChannels(tgId) {
     if (!db.bot.channels || !db.bot.channels.length) return true;
     for (const ch of db.bot.channels) {
@@ -822,7 +834,6 @@ async function startTelegramBot() {
     return { inline_keyboard: rows };
   }
 
-  // NEW: Dynamic panel selection menu
   function getPanelTypesKeyboard() {
     const keyboard = [];
     Object.keys(PANEL_TYPES).forEach(key => {
@@ -848,7 +859,6 @@ async function startTelegramBot() {
     };
   }
 
-  // NEW: Main menu with dynamic panel options
   function mainMenuKeyboard(tgId) {
     const rows = [
       [{ text: '🎁 زیرمجموعه‌گیری', callback_data: 'referral' }],
@@ -909,7 +919,7 @@ async function startTelegramBot() {
     );
   }
 
-  // ================= NEW: Remove coins from user =================
+  // ================= Remove coins from user =================
   async function removeCoins(chatId, targetId, amount) {
     const target = db.bot.users[targetId];
     if (!target) {
@@ -944,12 +954,29 @@ async function startTelegramBot() {
     const chatId = msg.chat.id;
     const u = getBotUser(tgId, msg.from);
 
-    if (!db.bot.settings.botEnabled) {
-      return bot.sendMessage(chatId, '⚠️ ربات در حال حاضر غیرفعال است. لطفاً بعداً مراجعه کنید.');
+    // Check if user is owner (admin)
+    if (isOwner(tgId)) {
+      // Owner always has access
+      if (isBanned(u)) return bot.sendMessage(chatId, banMessageText(u));
+      
+      const joined = await checkChannels(tgId);
+      if (!joined) {
+        return bot.sendMessage(chatId, '📢 برای استفاده از ربات اول باید عضو کانال‌(های) زیر بشی، بعد دکمه «عضو شدم» رو بزن:', { reply_markup: channelsKeyboard() });
+      }
+
+      if (!u.joinedChannels) {
+        u.joinedChannels = true;
+        saveDB();
+        await grantReferralCoin(u, tgId);
+      }
+
+      return sendWelcome(chatId, tgId);
     }
 
-    if (db.bot.settings.maintenanceMode) {
-      return bot.sendMessage(chatId, '🔧 ربات در حالت تعمیرات است. به زودی فعال می‌شود.');
+    // For regular users: check if bot is available
+    if (!isBotAvailableForUsers()) {
+      const statusMsg = getBotStatusMessage();
+      return bot.sendMessage(chatId, statusMsg || '🔴 ربات در حال حاضر در دسترس نیست. لطفاً بعداً مراجعه کنید.');
     }
 
     if (isBanned(u)) return bot.sendMessage(chatId, banMessageText(u));
@@ -986,9 +1013,14 @@ async function startTelegramBot() {
     const u = getBotUser(tgId, query.from);
 
     try {
-      if (!db.bot.settings.botEnabled) {
-        await bot.answerCallbackQuery(query.id);
-        return bot.sendMessage(chatId, '⚠️ ربات غیرفعال است.');
+      // Check if user is owner
+      if (!isOwner(tgId)) {
+        // For regular users: check if bot is available
+        if (!isBotAvailableForUsers()) {
+          await bot.answerCallbackQuery(query.id);
+          const statusMsg = getBotStatusMessage();
+          return bot.sendMessage(chatId, statusMsg || '🔴 ربات در حال حاضر در دسترس نیست. لطفاً بعداً مراجعه کنید.');
+        }
       }
 
       if (isBanned(u)) {
@@ -1136,24 +1168,41 @@ async function startTelegramBot() {
       if (data === 'owner_users_list') return sendUsersListPage(chatId, buildAllBotUserIds(), 0);
       if (data === 'owner_banned_list') return sendUsersListPage(chatId, buildBannedBotUserIds(), 0, true);
       if (data === 'owner_ban_history') return sendBanHistory(chatId, 0);
+      
+      // NEW: Toggle bot (only for owner/admin)
       if (data === 'owner_toggle_bot') {
-        db.bot.settings.botEnabled = !db.bot.settings.botEnabled;
-        saveDB();
+        const currentState = db.bot.settings.botEnabled;
+        db.bot.settings.botEnabled = !currentState;
+        
         if (!db.bot.settings.botEnabled) {
+          // Turning OFF: stop the bot polling
           stopTelegramBot();
           db.bot.active = false;
           saveDB();
+          
+          // Send confirmation to owner
+          await bot.sendMessage(chatId, 
+            `✅ ربات با موفقیت **غیرفعال** شد.\n\n` +
+            `کاربران عادی پیام زیر را دریافت می‌کنند:\n` +
+            `"${db.bot.settings.botOffMessage || '🔴 ربات موقتاً غیرفعال شده است.'}"`
+          );
         } else {
+          // Turning ON: start the bot
           try {
             await startTelegramBot();
             db.bot.active = true;
             saveDB();
+            await bot.sendMessage(chatId, '✅ ربات با موفقیت **فعال** شد.');
           } catch (e) {
-            return bot.sendMessage(chatId, `❌ خطا در راه‌اندازی ربات: ${e.message}`);
+            await bot.sendMessage(chatId, `❌ خطا در راه‌اندازی ربات: ${e.message}`);
+            // Revert the setting
+            db.bot.settings.botEnabled = false;
+            saveDB();
           }
         }
-        return bot.sendMessage(chatId, `✅ ربات ${db.bot.settings.botEnabled ? 'فعال' : 'غیرفعال'} شد.`);
+        return;
       }
+      
       if (data === 'owner_toggle_maintenance') {
         db.bot.settings.maintenanceMode = !db.bot.settings.maintenanceMode;
         saveDB();
@@ -1217,7 +1266,7 @@ async function startTelegramBot() {
         if (scheduled) {
           scheduled.active = !scheduled.active;
           saveDB();
-          if (scheduled.active && db.bot.active && botInstance) {
+          if (scheduled.active && db.bot.active && botInstance && db.bot.settings.botEnabled) {
             scheduleMessage(scheduled);
           } else if (scheduledJobs[m[1]]) {
             scheduledJobs[m[1]].cancel();
@@ -1331,6 +1380,15 @@ async function startTelegramBot() {
     const tgId = String(msg.from.id);
     const chatId = msg.chat.id;
     const text = msg.text.trim();
+
+    // Check if user is owner
+    if (!isOwner(tgId)) {
+      // For regular users: check if bot is available
+      if (!isBotAvailableForUsers()) {
+        const statusMsg = getBotStatusMessage();
+        return bot.sendMessage(chatId, statusMsg || '🔴 ربات در حال حاضر در دسترس نیست. لطفاً بعداً مراجعه کنید.');
+      }
+    }
 
     // Owner replying to a forwarded support message
     if (isOwner(tgId) && msg.reply_to_message) {
@@ -1558,7 +1616,7 @@ async function startTelegramBot() {
             [{ text: '👥 لیست کاربران', callback_data: 'owner_users_list' }, { text: '🔎 جستجو', callback_data: 'owner_search' }],
             [{ text: '🔒 بن‌شده‌ها', callback_data: 'owner_banned_list' }],
             [{ text: '🗂 بن‌های قبلی', callback_data: 'owner_ban_history' }],
-            [{ text: '🔄 وضعیت ربات', callback_data: 'owner_toggle_bot' }],
+            [{ text: '🔄 غیرفعال کردن ربات', callback_data: 'owner_toggle_bot' }],
             [{ text: '🔧 حالت تعمیرات', callback_data: 'owner_toggle_maintenance' }]
           ]
         }
@@ -1587,11 +1645,14 @@ async function startTelegramBot() {
 
   function sendOwnerSettings(chatId) {
     const referralCoins = db.bot.settings.referralCoins || 1;
+    const botOffMessage = db.bot.settings.botOffMessage || '🔴 ربات موقتاً غیرفعال شده است.';
     
     return bot.sendMessage(chatId,
       `⚙️ تنظیمات ربات\n\n` +
-      `🪙 سکه هر رفرال: ${referralCoins} سکه\n\n` +
-      `برای تغییر سکه هر رفرال، عدد جدید را بفرستید:`,
+      `🪙 سکه هر رفرال: ${referralCoins} سکه\n` +
+      `📝 پیام خاموشی ربات:\n${botOffMessage}\n\n` +
+      `برای تغییر سکه هر رفرال، عدد جدید را بفرستید.\n` +
+      `برای تغییر پیام خاموشی، عبارت "پیام خاموشی:" را ابتدا بفرستید.`,
       {
         reply_markup: {
           inline_keyboard: [
@@ -1657,21 +1718,60 @@ async function startTelegramBot() {
     return bot.sendMessage(chatId, message, { reply_markup: { inline_keyboard: rows } });
   }
 
-  // Handle adding schedule from text
+  // Handle adding schedule and settings from text
   bot.on('message', async (msg) => {
     if (!msg.text) return;
     const tgId = String(msg.from.id);
     const chatId = msg.chat.id;
     const text = msg.text.trim();
     
-    if (isOwner(tgId) && text.includes('|')) {
-      // Check if this is a schedule format
+    if (!isOwner(tgId)) return;
+    
+    // Handle bot off message update
+    if (text.startsWith('پیام خاموشی:')) {
+      const newMessage = text.replace('پیام خاموشی:', '').trim();
+      if (newMessage) {
+        db.bot.settings.botOffMessage = newMessage;
+        saveDB();
+        return bot.sendMessage(chatId, `✅ پیام خاموشی ربات با موفقیت تغییر کرد:\n\n${newMessage}`);
+      } else {
+        return bot.sendMessage(chatId, '❌ پیام نمی‌تواند خالی باشد.');
+      }
+    }
+    
+    // Handle referral coins setting
+    if (ownerSession.settingReferralCoins) {
+      ownerSession.settingReferralCoins = false;
+      const coins = parseInt(text, 10);
+      if (!coins || coins <= 0) {
+        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
+      }
+      db.bot.settings.referralCoins = coins;
+      saveDB();
+      return bot.sendMessage(chatId, `✅ سکه هر رفرال به ${coins} سکه تغییر کرد.`);
+    }
+    
+    // Handle panel cost editing
+    if (ownerSession.editingPanel) {
+      const panelType = ownerSession.editingPanel;
+      ownerSession.editingPanel = null;
+      const cost = parseFloat(text);
+      if (!cost || cost <= 0) {
+        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
+      }
+      db.bot.settings.panelCosts[panelType] = cost;
+      saveDB();
+      const panel = PANEL_TYPES[panelType];
+      return bot.sendMessage(chatId, `✅ هزینه ${panel.name} به ${cost} سکه در روز تغییر کرد.`);
+    }
+    
+    // Handle schedule creation
+    if (text.includes('|')) {
       const parts = text.split('|');
       if (parts.length >= 2) {
         const cron = parts[0].trim();
         const message = parts.slice(1).join('|').trim();
         
-        // Validate cron format
         try {
           schedule.scheduleJob(cron, function() {});
           
@@ -1686,7 +1786,7 @@ async function startTelegramBot() {
           db.bot.settings.scheduledMessages.push(scheduled);
           saveDB();
           
-          if (db.bot.active && botInstance) {
+          if (db.bot.active && botInstance && db.bot.settings.botEnabled) {
             scheduleMessage(scheduled);
           }
           
@@ -1695,32 +1795,6 @@ async function startTelegramBot() {
           return bot.sendMessage(chatId, '❌ فرمت cron نامعتبر است. لطفاً دوباره امتحان کنید.');
         }
       }
-    }
-    
-    // Handle referral coins setting
-    if (isOwner(tgId) && ownerSession.settingReferralCoins) {
-      ownerSession.settingReferralCoins = false;
-      const coins = parseInt(text, 10);
-      if (!coins || coins <= 0) {
-        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
-      }
-      db.bot.settings.referralCoins = coins;
-      saveDB();
-      return bot.sendMessage(chatId, `✅ سکه هر رفرال به ${coins} سکه تغییر کرد.`);
-    }
-    
-    // Handle panel cost editing
-    if (isOwner(tgId) && ownerSession.editingPanel) {
-      const panelType = ownerSession.editingPanel;
-      ownerSession.editingPanel = null;
-      const cost = parseFloat(text);
-      if (!cost || cost <= 0) {
-        return bot.sendMessage(chatId, '❌ لطفاً یک عدد معتبر (بزرگتر از 0) وارد کنید.');
-      }
-      db.bot.settings.panelCosts[panelType] = cost;
-      saveDB();
-      const panel = PANEL_TYPES[panelType];
-      return bot.sendMessage(chatId, `✅ هزینه ${panel.name} به ${cost} سکه در روز تغییر کرد.`);
     }
   });
 
@@ -1837,10 +1911,12 @@ async function startTelegramBot() {
           if (left <= 3 && left >= 0 && p.lastNotifiedDay !== left) {
             p.lastNotifiedDay = left;
             saveDB();
-            bot.sendMessage(bu.id,
-              '⏳ پنل «' + p.username + '» فقط ' + left + ' روز دیگه اعتبار داره!\nبرای تمدید از دکمه زیر استفاده کن 👇',
-              { reply_markup: { inline_keyboard: [[{ text: '🔄 تمدید (+۱۰ روز)', callback_data: 'renew_' + p.userId }]] } }
-            ).catch(() => {});
+            if (isBotAvailableForUsers()) {
+              bot.sendMessage(bu.id,
+                '⏳ پنل «' + p.username + '» فقط ' + left + ' روز دیگه اعتبار داره!\nبرای تمدید از دکمه زیر استفاده کن 👇',
+                { reply_markup: { inline_keyboard: [[{ text: '🔄 تمدید (+۱۰ روز)', callback_data: 'renew_' + p.userId }]] } }
+              ).catch(() => {});
+            }
           }
         });
       });
@@ -1851,7 +1927,7 @@ async function startTelegramBot() {
 
   // Schedule all existing messages
   (db.bot.settings.scheduledMessages || []).forEach(s => {
-    if (s.active) {
+    if (s.active && db.bot.settings.botEnabled) {
       scheduleMessage(s);
     }
   });
