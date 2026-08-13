@@ -1,5 +1,8 @@
 // PUG62 WireGuard Panel — backend server with Telegram Bot
-// با قابلیت‌های مدیریت پیشرفته
+// Serves the panel (public/index.html), the subscription page (public/sub.html),
+// a JSON-file-backed API for auth/admin/configs, and an optional Telegram bot
+// (referral coins, forced-join gate, self-service panel issuance, ban system,
+// owner-only management menu with unlimited coin transfer)
 
 const express = require('express');
 const path = require('path');
@@ -7,7 +10,6 @@ const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const schedule = require('node-schedule');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,7 +20,7 @@ const ADMIN_PASSWORD = 'arian@11USER';
 
 const PANEL_URL = process.env.PANEL_URL || 'https://pug62best.dpdns.org/';
 
-// ---------- Server catalogue ----------
+// ---------- Server catalogue (UPDATED with your new configs) ----------
 const WG_SERVERS = {
   UAE: { ip: '154.49.239.4', port: 62050, country: 'United Arab Emirates', city: 'Dubai' },
   TR: { ip: '154.49.239.4', port: 62050, country: 'Turkey', city: 'Istanbul' },
@@ -58,7 +60,7 @@ PrivateKey = kNvr1/n8GbdzCdQxqlBeWQUur2XP5wbB0fjmHnwFZUQ=
 Address = 10.39.89.26/32
 DNS = 1.1.1.1, 1.182.102.115
 # Name: B13
-# Region: \uD83C\uDDEE\uD83C\uDDF7\u0627\u06CC\u0631\u0627\u0646
+# Region: \uD83C\uDDEE\uD83C\uDDF7\u0627\u06cc\u0631\u0627\u0646
 # VIP: Active
 
 [Peer]
@@ -66,31 +68,6 @@ PublicKey = aFP5M1M2VUEByYqLt29xyUCmNT2vYXsVGiUG+DSl2Uo=
 AllowedIPs = ::/0
 Endpoint = 0.0.0.0:51820
 PersistentKeepalive = 25`
-};
-
-// ---------- Panel Types Configuration (NEW) ----------
-const PANEL_TYPES = {
-  'wireguard': {
-    name: 'پنل وایرگارد',
-    icon: '🛡',
-    defaultReferralCost: 4, // تعداد رفرال مورد نیاز
-    defaultCoinCost: 2, // هزینه به سکه
-    enabled: true
-  },
-  'pasargard': {
-    name: 'پنل پاسارگارد',
-    icon: '🔰',
-    defaultReferralCost: 5,
-    defaultCoinCost: 3,
-    enabled: true
-  },
-  'express': {
-    name: 'پنل اکسپرس',
-    icon: '⚡',
-    defaultReferralCost: 6,
-    defaultCoinCost: 4,
-    enabled: true
-  }
 };
 
 // ---------- Tiny JSON-file database ----------
@@ -108,13 +85,7 @@ function freshDB() {
       channels: [],
       active: false,
       users: {},
-      supportReplyMap: {},
-      // NEW: Settings
-      settings: {
-        referralCoinValue: 1, // هر رفرال چند سکه میده
-        panelTypes: { ...PANEL_TYPES },
-        broadcastJobs: [] // زمان‌بندی پیام‌ها
-      }
+      supportReplyMap: {}
     }
   };
 }
@@ -135,9 +106,6 @@ function loadDB() {
     if (!Array.isArray(parsed.bot.channels)) parsed.bot.channels = [];
     if (!parsed.bot.users || typeof parsed.bot.users !== 'object') parsed.bot.users = {};
     if (!parsed.bot.supportReplyMap) parsed.bot.supportReplyMap = {};
-    if (!parsed.bot.settings) parsed.bot.settings = freshDB().bot.settings;
-    if (!parsed.bot.settings.panelTypes) parsed.bot.settings.panelTypes = { ...PANEL_TYPES };
-    if (!parsed.bot.settings.broadcastJobs) parsed.bot.settings.broadcastJobs = [];
     return parsed;
   } catch (e) {
     const fresh = freshDB();
@@ -418,91 +386,6 @@ app.delete('/api/configs/:id', authRequired, (req, res) => {
   res.json({ ok: true });
 });
 
-// ---------- NEW: Bot settings API ----------
-app.get('/api/admin/bot/settings', adminOnly, (req, res) => {
-  res.json({
-    referralCoinValue: db.bot.settings.referralCoinValue || 1,
-    panelTypes: db.bot.settings.panelTypes || PANEL_TYPES,
-    broadcastJobs: db.bot.settings.broadcastJobs || []
-  });
-});
-
-app.post('/api/admin/bot/settings/referral', adminOnly, (req, res) => {
-  const { value } = req.body || {};
-  if (typeof value !== 'number' || value < 0) {
-    return res.status(400).json({ error: 'invalid_value' });
-  }
-  db.bot.settings.referralCoinValue = value;
-  saveDB();
-  res.json({ ok: true, referralCoinValue: value });
-});
-
-app.post('/api/admin/bot/settings/panel-type', adminOnly, (req, res) => {
-  const { panelType, referralCost, coinCost, enabled } = req.body || {};
-  if (!panelType || !db.bot.settings.panelTypes[panelType]) {
-    return res.status(400).json({ error: 'invalid_panel_type' });
-  }
-  const settings = db.bot.settings.panelTypes[panelType];
-  if (referralCost !== undefined) settings.referralCost = Number(referralCost);
-  if (coinCost !== undefined) settings.coinCost = Number(coinCost);
-  if (enabled !== undefined) settings.enabled = Boolean(enabled);
-  saveDB();
-  res.json({ ok: true, settings });
-});
-
-// ---------- NEW: Broadcast API ----------
-app.post('/api/admin/bot/broadcast', adminOnly, async (req, res) => {
-  const { message, schedule: scheduleTime } = req.body || {};
-  if (!message) return res.status(400).json({ error: 'message_required' });
-
-  // Send immediate broadcast
-  if (!scheduleTime) {
-    await sendBroadcastMessage(message);
-    return res.json({ ok: true, immediate: true });
-  }
-
-  // Schedule broadcast
-  const job = {
-    id: genId('bj'),
-    message,
-    schedule: scheduleTime, // مثل '0 10 * * 3' برای هر سه شنبه
-    createdAt: Date.now(),
-    lastSent: null
-  };
-  db.bot.settings.broadcastJobs.push(job);
-  saveDB();
-  
-  // Schedule the job
-  scheduleJob(job);
-  
-  res.json({ ok: true, job });
-});
-
-app.get('/api/admin/bot/broadcast', adminOnly, (req, res) => {
-  res.json({ jobs: db.bot.settings.broadcastJobs || [] });
-});
-
-app.delete('/api/admin/bot/broadcast/:jobId', adminOnly, (req, res) => {
-  const idx = db.bot.settings.broadcastJobs.findIndex(j => j.id === req.params.jobId);
-  if (idx === -1) return res.status(404).json({ error: 'not_found' });
-  db.bot.settings.broadcastJobs.splice(idx, 1);
-  saveDB();
-  res.json({ ok: true });
-});
-
-// ---------- NEW: Coin management API ----------
-app.post('/api/admin/bot/coins/:userId', adminOnly, (req, res) => {
-  const { amount } = req.body || {};
-  if (!amount || typeof amount !== 'number') {
-    return res.status(400).json({ error: 'invalid_amount' });
-  }
-  const user = db.bot.users[req.params.userId];
-  if (!user) return res.status(404).json({ error: 'user_not_found' });
-  user.coins = (user.coins || 0) + amount;
-  saveDB();
-  res.json({ ok: true, coins: user.coins });
-});
-
 // ---------- Public subscription endpoint ----------
 function formatBytes(bytes) {
   if (!bytes || bytes <= 0) return '0 B';
@@ -619,7 +502,6 @@ app.post('/api/admin/bot/stop', adminOnly, (req, res) => {
 let botInstance = null;
 let botUsername = '';
 let renewalCheckTimer = null;
-let scheduledJobs = {};
 const ownerSession = {};
 
 function stopTelegramBot() {
@@ -631,59 +513,6 @@ function stopTelegramBot() {
     clearInterval(renewalCheckTimer);
     renewalCheckTimer = null;
   }
-  // Cancel all scheduled jobs
-  Object.values(scheduledJobs).forEach(job => {
-    try { job.cancel(); } catch (e) {}
-  });
-  scheduledJobs = {};
-}
-
-// ---------- Broadcast functions ----------
-async function sendBroadcastMessage(message) {
-  if (!botInstance) return;
-  const users = Object.keys(db.bot.users);
-  let sent = 0;
-  let failed = 0;
-  
-  for (const userId of users) {
-    try {
-      await botInstance.sendMessage(userId, message);
-      sent++;
-      // Delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 100));
-    } catch (e) {
-      failed++;
-    }
-  }
-  
-  console.log(`Broadcast sent to ${sent} users, failed: ${failed}`);
-  return { sent, failed };
-}
-
-function scheduleJob(job) {
-  if (scheduledJobs[job.id]) {
-    try { scheduledJobs[job.id].cancel(); } catch (e) {}
-  }
-  
-  // Parse cron expression
-  const cronExpression = job.schedule;
-  const jobObj = schedule.scheduleJob(cronExpression, async () => {
-    try {
-      await sendBroadcastMessage(job.message);
-      job.lastSent = Date.now();
-      saveDB();
-    } catch (e) {
-      console.error('Broadcast job error:', e);
-    }
-  });
-  
-  scheduledJobs[job.id] = jobObj;
-}
-
-function scheduleAllJobs() {
-  (db.bot.settings.broadcastJobs || []).forEach(job => {
-    scheduleJob(job);
-  });
 }
 
 async function startTelegramBot() {
@@ -798,7 +627,7 @@ async function startTelegramBot() {
 
   function mainMenuKeyboard(tgId) {
     const rows = [
-      [{ text: '🎁 زیرمجموعه‌گیری', callback_data: 'referral' }, { text: '🛡 دریافت پنل', callback_data: 'get_panel' }],
+      [{ text: '🎁 زیرمجموعه‌گیری', callback_data: 'referral' }, { text: '🛡 دریافت پنل وایرگارد', callback_data: 'get_panel' }],
       [{ text: '📂 پنل‌های من', callback_data: 'my_panels' }, { text: '👤 اطلاعات کاربری', callback_data: 'user_info' }],
       [{ text: '🆘 پشتیبانی', callback_data: 'support' }]
     ];
@@ -819,38 +648,15 @@ async function startTelegramBot() {
       const inviter = db.bot.users[u.pendingReferral];
       if (!inviter.referrals.includes(tgId)) {
         inviter.referrals.push(tgId);
-        const coinValue = db.bot.settings.referralCoinValue || 1;
-        inviter.coins = (inviter.coins || 0) + coinValue;
-        bot.sendMessage(inviter.id, `🎉 یک نفر با لینک شما وارد ربات شد و عضو کانال‌ها هم شد!\n🪙 ${coinValue} سکه به حسابت اضافه شد.`).catch(() => {});
+        inviter.coins = (inviter.coins || 0) + 1;
+        bot.sendMessage(inviter.id, '🎉 یک نفر با لینک شما وارد ربات شد و عضو کانال‌ها هم شد!\n🪙 ۱ سکه به حسابت اضافه شد.').catch(() => {});
       }
       u.pendingReferral = null;
       saveDB();
     }
   }
 
-  // ================= Panel purchase with panel types =================
-  async function beginPanelPurchase(chatId, u, panelType, days) {
-    const panelSettings = db.bot.settings.panelTypes[panelType];
-    if (!panelSettings || !panelSettings.enabled) {
-      return bot.sendMessage(chatId, '❌ این نوع پنل در حال حاضر فعال نیست.');
-    }
-
-    const costCoins = Math.ceil(days * panelSettings.coinCost);
-    const requiredReferrals = Math.ceil(days * panelSettings.referralCost);
-
-    // Check if user has enough coins
-    if ((u.coins || 0) < costCoins) {
-      return bot.sendMessage(chatId,
-        `❌ سکه کافی نداری!\n🪙 سکه فعلی: ${u.coins || 0}\n💰 سکه لازم: ${costCoins}\n🔢 تعداد رفرال لازم: ${requiredReferrals}\n\nاز دکمه «زیرمجموعه‌گیری» برای گرفتن سکه بیشتر استفاده کن.`
-      );
-    }
-
-    u.state = { action: 'awaiting_username', days, costCoins, requiredReferrals, panelType };
-    saveDB();
-    return bot.sendMessage(chatId, '👤 یک نام کاربری برای پنلت بفرست (فقط حروف/عدد انگلیسی، بدون فاصله):');
-  }
-
-  // ================= Transfer coins function (unlimited for owner) =================
+  // ================= NEW: Transfer coins function (unlimited for owner) =================
   async function transferCoins(chatId, targetId, amount) {
     const target = db.bot.users[targetId];
     if (!target) {
@@ -861,14 +667,17 @@ async function startTelegramBot() {
       return bot.sendMessage(chatId, '❌ مقدار باید بیشتر از 0 باشد.');
     }
     
+    // Owner has unlimited coins, just add to user
     target.coins = (target.coins || 0) + amount;
     saveDB();
     
+    // Send message to user
     await bot.sendMessage(
       target.id, 
       `🎁 شما ${amount} سکه از طرف مدیریت دریافت کردید!\n🪙 سکه جدید شما: ${target.coins}`
     ).catch(() => {});
     
+    // Send confirmation to owner
     await bot.sendMessage(
       chatId, 
       `✅ ${amount} سکه با موفقیت به کاربر ${target.firstName || targetId} منتقل شد.\n🪙 سکه جدید کاربر: ${target.coins}`
@@ -938,13 +747,12 @@ async function startTelegramBot() {
       // ---- referral ----
       if (data === 'referral') {
         const link = 'https://t.me/' + botUsername + '?start=ref_' + tgId;
-        const coinValue = db.bot.settings.referralCoinValue || 1;
         return bot.sendMessage(chatId,
           '🎁 لینک اختصاصی زیرمجموعه‌گیری شما:\n' + link +
           '\n\n🪙 سکه فعلی: ' + (u.coins || 0) +
           '\n👥 تعداد زیرمجموعه: ' + u.referrals.length + ' نفر' +
-          '\n💰 ارزش هر رفرال: ' + coinValue + ' سکه' +
-          '\n\nهر کسی با این لینک وارد ربات بشه و عضو کانال‌ها هم بشه، ' + coinValue + ' سکه بهت اضافه می‌شه. 🪙'
+          '\n\nهر کسی با این لینک وارد ربات بشه و عضو کانال‌ها هم بشه، ۱ سکه بهت اضافه می‌شه. 🪙\n\n' +
+          '💡 هزینه دریافت پنل: هر ۱ روز = ۰.۵ سکه (مثلاً پنل ۱۰ روزه = ۵ سکه)'
         );
       }
 
@@ -963,13 +771,13 @@ async function startTelegramBot() {
       // ---- my panels ----
       if (data === 'my_panels') {
         if (!u.panels.length) {
-          return bot.sendMessage(chatId, '📭 هنوز هیچ پنلی دریافت نکردی.\nاز دکمه «دریافت پنل» استفاده کن.');
+          return bot.sendMessage(chatId, '📭 هنوز هیچ پنلی دریافت نکردی.\nاز دکمه «دریافت پنل وایرگارد» استفاده کن.');
         }
         const lines = u.panels.map((p) => {
           const acct = db.users.find((x) => x.id === p.userId);
           if (!acct) return '📦 ' + p.username + ' — ❌ حذف شده';
           const left = daysLeftOf(acct.expireAt);
-          return '📦 ' + p.username + ' (' + p.panelType + ') — ' + (left > 0 ? left + ' روز مونده' : '⛔ منقضی شده') + (acct.isActive ? '' : ' (غیرفعال)');
+          return '📦 ' + p.username + ' — ' + (left > 0 ? left + ' روز مونده' : '⛔ منقضی شده') + (acct.isActive ? '' : ' (غیرفعال)');
         });
         return bot.sendMessage(chatId, '📂 پنل‌های شما:\n\n' + lines.join('\n'));
       }
@@ -981,61 +789,26 @@ async function startTelegramBot() {
         return bot.sendMessage(chatId, '✍️ پیامت رو بنویس، مستقیم برای پشتیبانی ارسال می‌شه:');
       }
 
-      // ---- get panel: choose panel type ----
+      // ---- get panel: choose duration ----
       if (data === 'get_panel') {
-        const buttons = [];
-        const panelTypes = db.bot.settings.panelTypes;
-        for (const [key, value] of Object.entries(panelTypes)) {
-          if (value.enabled) {
-            buttons.push([{ text: `${value.icon} ${value.name}`, callback_data: `panel_type_${key}` }]);
-          }
-        }
-        buttons.push([{ text: '✏️ روز دلخواه (بیشتر از 30 روز)', callback_data: 'panel_custom' }]);
-        
-        return bot.sendMessage(chatId, '🛡 نوع پنل مورد نظر را انتخاب کنید:', {
-          reply_markup: { inline_keyboard: buttons }
-        });
-      }
-
-      // ---- panel type selected ----
-      const typeMatch = data.match(/^panel_type_(.+)$/);
-      if (typeMatch) {
-        const panelType = typeMatch[1];
-        const panelSettings = db.bot.settings.panelTypes[panelType];
-        if (!panelSettings || !panelSettings.enabled) {
-          return bot.sendMessage(chatId, '❌ این نوع پنل در حال حاضر فعال نیست.');
-        }
-        
-        u.state = { action: 'awaiting_panel_days', panelType };
-        saveDB();
-        
-        return bot.sendMessage(chatId, `📅 ${panelSettings.icon} ${panelSettings.name}\n\nچند روز پنل می‌خوای؟\nهر روز = ${panelSettings.coinCost} سکه و ${panelSettings.referralCost} رفرال`, {
+        return bot.sendMessage(chatId, '🛡 برای چند روز پنل می‌خوای؟\n(هر ۱ روز = ۰.۵ سکه)', {
           reply_markup: {
             inline_keyboard: [
-              [{ text: '📅 10 روز', callback_data: 'panel_preset_10' }],
-              [{ text: '📅 20 روز', callback_data: 'panel_preset_20' }],
-              [{ text: '📅 30 روز', callback_data: 'panel_preset_30' }],
-              [{ text: '✏️ روز دلخواه', callback_data: 'panel_custom_days' }]
+              [{ text: '📅 10 روز — 🪙 5 سکه', callback_data: 'panel_days_10' }],
+              [{ text: '📅 20 روز — 🪙 10 سکه', callback_data: 'panel_days_20' }],
+              [{ text: '📅 30 روز — 🪙 15 سکه', callback_data: 'panel_days_30' }],
+              [{ text: '✏️ روز دلخواه (بیشتر از 30 روز)', callback_data: 'panel_custom' }]
             ]
           }
         });
       }
 
-      // ---- panel preset days ----
-      const presetMatch = data.match(/^panel_preset_(\d+)$/);
-      if (presetMatch && u.state && u.state.action === 'awaiting_panel_days') {
+      const presetMatch = data.match(/^panel_days_(\d+)$/);
+      if (presetMatch) {
         const days = Number(presetMatch[1]);
-        return beginPanelPurchase(chatId, u, u.state.panelType, days);
+        return beginPanelPurchase(chatId, u, days);
       }
 
-      // ---- custom days ----
-      if (data === 'panel_custom_days' && u.state && u.state.action === 'awaiting_panel_days') {
-        u.state.action = 'awaiting_custom_days_amount';
-        saveDB();
-        return bot.sendMessage(chatId, '🔢 چند روز می‌خوای؟ (باید بیشتر از 30 روز باشه)');
-      }
-
-      // ---- custom day from old flow ----
       if (data === 'panel_custom') {
         u.state = { action: 'awaiting_custom_days' };
         saveDB();
@@ -1060,9 +833,6 @@ async function startTelegramBot() {
       if (data === 'owner_users_list') return sendUsersListPage(chatId, buildAllBotUserIds(), 0);
       if (data === 'owner_banned_list') return sendUsersListPage(chatId, buildBannedBotUserIds(), 0, true);
       if (data === 'owner_ban_history') return sendBanHistory(chatId, 0);
-      if (data === 'owner_broadcast') return sendBroadcastMenu(chatId);
-      if (data === 'owner_settings') return sendSettingsMenu(chatId);
-      if (data === 'owner_toggle_bot') return toggleBot(chatId);
 
       let m;
       if ((m = data.match(/^ulpage_(\d+)$/))) return sendUsersListPage(chatId, buildAllBotUserIds(), Number(m[1]));
@@ -1071,7 +841,7 @@ async function startTelegramBot() {
 
       if ((m = data.match(/^ownuser_(.+)$/))) return sendUserProfile(chatId, m[1]);
 
-      // ================= Transfer coins handlers =================
+      // ================= NEW: Transfer coins handlers =================
       if ((m = data.match(/^transfer_coins_(.+)$/))) {
         const targetId = m[1];
         ownerSession.pendingTransfer = { targetId };
@@ -1164,59 +934,23 @@ async function startTelegramBot() {
         ownerSession.searching = true;
         return bot.sendMessage(chatId, '🔎 اسم یا یوزرنیم مورد نظر رو بفرست:');
       }
-
-      // ---- Broadcast menu actions ----
-      if (data === 'broadcast_now') {
-        ownerSession.pendingBroadcast = true;
-        return bot.sendMessage(chatId, '✍️ متن پیام همگانی رو بنویس:');
-      }
-
-      if (data === 'broadcast_schedule') {
-        ownerSession.pendingBroadcast = { scheduling: true };
-        return bot.sendMessage(chatId, '✍️ متن پیام همگانی رو بنویس:');
-      }
-
-      // ---- Settings menu actions ----
-      if ((m = data.match(/^set_referral_(\d+)$/))) {
-        db.bot.settings.referralCoinValue = Number(m[1]);
-        saveDB();
-        return bot.sendMessage(chatId, `✅ ارزش هر رفرال به ${m[1]} سکه تغییر کرد.`);
-      }
-
-      if ((m = data.match(/^set_panel_(.+)_referral_(\d+)$/))) {
-        const panelType = m[1];
-        const value = Number(m[2]);
-        if (db.bot.settings.panelTypes[panelType]) {
-          db.bot.settings.panelTypes[panelType].referralCost = value;
-          saveDB();
-          return bot.sendMessage(chatId, `✅ تعداد رفرال مورد نیاز برای ${db.bot.settings.panelTypes[panelType].name} به ${value} تغییر کرد.`);
-        }
-      }
-
-      if ((m = data.match(/^set_panel_(.+)_coin_(\d+)$/))) {
-        const panelType = m[1];
-        const value = Number(m[2]);
-        if (db.bot.settings.panelTypes[panelType]) {
-          db.bot.settings.panelTypes[panelType].coinCost = value;
-          saveDB();
-          return bot.sendMessage(chatId, `✅ هزینه سکه برای ${db.bot.settings.panelTypes[panelType].name} به ${value} تغییر کرد.`);
-        }
-      }
-
-      if ((m = data.match(/^toggle_panel_(.+)$/))) {
-        const panelType = m[1];
-        if (db.bot.settings.panelTypes[panelType]) {
-          db.bot.settings.panelTypes[panelType].enabled = !db.bot.settings.panelTypes[panelType].enabled;
-          saveDB();
-          const status = db.bot.settings.panelTypes[panelType].enabled ? 'فعال' : 'غیرفعال';
-          return bot.sendMessage(chatId, `✅ ${db.bot.settings.panelTypes[panelType].name} ${status} شد.`);
-        }
-      }
-
     } catch (err) {
       console.error('bot callback_query error:', err);
     }
   });
+
+  async function beginPanelPurchase(chatId, u, days) {
+    const cost = Math.ceil(days * 0.5);
+    if ((u.coins || 0) < cost) {
+      return bot.sendMessage(chatId,
+        '❌ سکه کافی نداری!\n🪙 سکه فعلی: ' + (u.coins || 0) + '\n💰 سکه لازم: ' + cost +
+        '\n\nاز دکمه «زیرمجموعه‌گیری» برای گرفتن سکه بیشتر استفاده کن.'
+      );
+    }
+    u.state = { action: 'awaiting_username', days, cost };
+    saveDB();
+    return bot.sendMessage(chatId, '👤 یک نام کاربری برای پنلت بفرست (فقط حروف/عدد انگلیسی، بدون فاصله):');
+  }
 
   // ---------------- plain text messages ----------------
   bot.on('message', async (msg) => {
@@ -1242,7 +976,7 @@ async function startTelegramBot() {
       return bot.sendMessage(chatId, '✅ پیام ارسال شد.');
     }
 
-    // ================= Owner transferring coins =================
+    // ================= NEW: Owner transferring coins =================
     if (isOwner(tgId) && ownerSession.pendingTransfer) {
       const amount = parseInt(text, 10);
       if (!amount || amount <= 0) {
@@ -1253,59 +987,6 @@ async function startTelegramBot() {
       ownerSession.pendingTransfer = null;
       await transferCoins(chatId, targetId, amount);
       return;
-    }
-
-    // ================= Owner broadcast =================
-    if (isOwner(tgId) && ownerSession.pendingBroadcast) {
-      const isScheduled = ownerSession.pendingBroadcast.scheduling || false;
-      ownerSession.pendingBroadcast = null;
-      
-      if (isScheduled) {
-        // Ask for schedule time
-        ownerSession.pendingBroadcastSchedule = { message: text };
-        return bot.sendMessage(chatId, 
-          '⏰ زمان ارسال پیام را با فرمت cron وارد کنید:\n\n' +
-          'مثال‌ها:\n' +
-          '• هر سه شنبه ساعت ۱۰ صبح: `0 10 * * 3`\n' +
-          '• هر روز ساعت ۹ شب: `0 21 * * *`\n' +
-          '• هر ساعت: `0 * * * *`\n\n' +
-          'برای ارسال فوری عدد 0 را وارد کنید.'
-        );
-      } else {
-        // Immediate broadcast
-        const result = await sendBroadcastMessage(text);
-        return bot.sendMessage(chatId, `✅ پیام همگانی به ${result.sent} نفر ارسال شد. (${result.failed} نفر ناموفق)`);
-      }
-    }
-
-    // ================= Owner broadcast schedule time =================
-    if (isOwner(tgId) && ownerSession.pendingBroadcastSchedule) {
-      const scheduleTime = text.trim();
-      const message = ownerSession.pendingBroadcastSchedule.message;
-      ownerSession.pendingBroadcastSchedule = null;
-
-      if (scheduleTime === '0') {
-        // Immediate send
-        const result = await sendBroadcastMessage(message);
-        return bot.sendMessage(chatId, `✅ پیام همگانی به ${result.sent} نفر ارسال شد. (${result.failed} نفر ناموفق)`);
-      }
-
-      // Validate cron expression
-      try {
-        const job = {
-          id: genId('bj'),
-          message,
-          schedule: scheduleTime,
-          createdAt: Date.now(),
-          lastSent: null
-        };
-        db.bot.settings.broadcastJobs.push(job);
-        saveDB();
-        scheduleJob(job);
-        return bot.sendMessage(chatId, `✅ پیام با موفقیت زمان‌بندی شد.\n⏰ زمان: ${scheduleTime}`);
-      } catch (e) {
-        return bot.sendMessage(chatId, '❌ فرمت زمان نامعتبر است. لطفاً دوباره تلاش کنید.');
-      }
     }
 
     // Owner ban flow: entering number of days
@@ -1364,25 +1045,13 @@ async function startTelegramBot() {
       }
     }
 
-    // ---- custom day count (old flow) ----
+    // ---- custom day count ----
     if (u.state.action === 'awaiting_custom_days') {
       const days = parseInt(text, 10);
       if (!days || days <= 30) {
         return bot.sendMessage(chatId, '❌ باید بیشتر از 30 روز باشه. یه عدد دیگه بفرست:');
       }
-      return beginPanelPurchase(chatId, u, 'wireguard', days);
-    }
-
-    // ---- custom days amount for panel type ----
-    if (u.state.action === 'awaiting_custom_days_amount' && u.state.panelType) {
-      const days = parseInt(text, 10);
-      if (!days || days <= 30) {
-        return bot.sendMessage(chatId, '❌ باید بیشتر از 30 روز باشه. یه عدد دیگه بفرست:');
-      }
-      const panelType = u.state.panelType;
-      u.state = null;
-      saveDB();
-      return beginPanelPurchase(chatId, u, panelType, days);
+      return beginPanelPurchase(chatId, u, days);
     }
 
     // ---- choosing a panel username ----
@@ -1409,25 +1078,15 @@ async function startTelegramBot() {
       if (created.error) {
         u.state = null;
         saveDB();
-        return bot.sendMessage(chatId, '❌ مشکلی پیش اومد (' + created.error + ')، دوباره از اول از دکمه «دریافت پنل» شروع کن.');
+        return bot.sendMessage(chatId, '❌ مشکلی پیش اومد (' + created.error + ')، دوباره از اول از دکمه «دریافت پنل وایرگارد» شروع کن.');
       }
-      u.coins = (u.coins || 0) - state.costCoins;
-      u.panels.push({ 
-        userId: created.id, 
-        username: state.username, 
-        days: state.days, 
-        panelType: state.panelType || 'wireguard',
-        createdAt: Date.now(), 
-        expireAt: created.expireAt 
-      });
+      u.coins = (u.coins || 0) - state.cost;
+      u.panels.push({ userId: created.id, username: state.username, days: state.days, createdAt: Date.now(), expireAt: created.expireAt });
       u.state = null;
       saveDB();
 
-      const panelSettings = db.bot.settings.panelTypes[state.panelType || 'wireguard'];
-      const panelName = panelSettings ? panelSettings.name : 'پنل';
-
       await bot.sendMessage(chatId,
-        `✅ ${panelName} با موفقیت ساخته شد! 🎉\n\n` +
+        '✅ پنلت با موفقیت ساخته شد! 🎉\n\n' +
         '🔗 لینک پنل: ' + PANEL_URL +
         '\n👤 یوزرنیم: ' + state.username +
         '\n🔑 رمز عبور: ' + text +
@@ -1436,7 +1095,7 @@ async function startTelegramBot() {
       );
 
       bot.sendMessage(ownerIdStr(),
-        `📥 کاربر ${nameOf(u)} (آیدی: ${tgId}) یک ${panelName} ${state.days} روزه دریافت کرد.\n👤 یوزرنیم پنل: ${state.username}`
+        '📥 کاربر ' + nameOf(u) + ' (آیدی: ' + tgId + ') یک پنل ' + state.days + ' روزه دریافت کرد.\n👤 یوزرنیم پنل: ' + state.username
       ).catch(() => {});
       return;
     }
@@ -1448,7 +1107,6 @@ async function startTelegramBot() {
       chatId, 
       '👑 پنل مدیریت ربات\n\n' +
       '🪙 وضعیت سکه شما: **نامحدود** ♾️\n' +
-      `🤖 وضعیت ربات: ${db.bot.active ? '✅ فعال' : '❌ غیرفعال'}\n` +
       'شما می‌توانید به هر کاربری هر مقدار سکه که می‌خواید بدید.',
       {
         reply_markup: {
@@ -1456,10 +1114,7 @@ async function startTelegramBot() {
             [{ text: '📊 وضعیت ربات', callback_data: 'owner_stats' }],
             [{ text: '👥 لیست کاربران', callback_data: 'owner_users_list' }, { text: '🔎 جستجو', callback_data: 'owner_search' }],
             [{ text: '🔒 بن‌شده‌ها', callback_data: 'owner_banned_list' }],
-            [{ text: '🗂 بن‌های قبلی', callback_data: 'owner_ban_history' }],
-            [{ text: '📨 پیام همگانی', callback_data: 'owner_broadcast' }],
-            [{ text: '⚙️ تنظیمات', callback_data: 'owner_settings' }],
-            [{ text: `🤖 ${db.bot.active ? 'خاموش' : 'روشن'} کردن ربات`, callback_data: 'owner_toggle_bot' }]
+            [{ text: '🗂 بن‌های قبلی', callback_data: 'owner_ban_history' }]
           ]
         }
       }
@@ -1472,7 +1127,6 @@ async function startTelegramBot() {
     const joined = all.filter((x) => x.joinedChannels).length;
     const gotPanel = all.filter((x) => x.panels && x.panels.length).length;
     const bannedNow = all.filter((x) => isBanned(x)).length;
-    const totalCoins = all.reduce((sum, u) => sum + (u.coins || 0), 0);
     
     return bot.sendMessage(chatId,
       '📊 وضعیت ربات\n\n' +
@@ -1480,85 +1134,8 @@ async function startTelegramBot() {
       '\n✅ عضو کانال‌ها: ' + joined + ' نفر' +
       '\n📦 دریافت‌کننده‌ی پنل: ' + gotPanel + ' نفر' +
       '\n🚫 بن‌شده الان: ' + bannedNow + ' نفر' +
-      '\n🪙 کل سکه‌ها: ' + totalCoins + ' سکه' +
-      '\n💰 ارزش هر رفرال: ' + (db.bot.settings.referralCoinValue || 1) + ' سکه' +
       '\n🪙 شما به عنوان مالک سکه نامحدود دارید ♾️'
     );
-  }
-
-  function sendBroadcastMenu(chatId) {
-    const jobs = db.bot.settings.broadcastJobs || [];
-    let jobList = '📋 پیام‌های زمان‌بندی شده:\n\n';
-    if (jobs.length === 0) {
-      jobList += 'هیچ پیام زمان‌بندی شده‌ای وجود ندارد.\n';
-    } else {
-      jobs.forEach((job, index) => {
-        jobList += `${index + 1}. زمان: ${job.schedule}\n   آخرین ارسال: ${job.lastSent ? new Date(job.lastSent).toLocaleString('fa-IR') : 'هنوز ارسال نشده'}\n\n`;
-      });
-    }
-
-    return bot.sendMessage(chatId,
-      `📨 مدیریت پیام همگانی\n\n${jobList}` +
-      '\nانتخاب کنید:',
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '📨 ارسال فوری', callback_data: 'broadcast_now' }],
-            [{ text: '⏰ زمان‌بندی ارسال', callback_data: 'broadcast_schedule' }]
-          ]
-        }
-      }
-    );
-  }
-
-  function sendSettingsMenu(chatId) {
-    const settings = db.bot.settings;
-    const panelTypes = settings.panelTypes || PANEL_TYPES;
-    
-    let panelList = '';
-    for (const [key, value] of Object.entries(panelTypes)) {
-      panelList += `${value.icon} ${value.name}:\n`;
-      panelList += `  🔢 رفرال مورد نیاز: ${value.referralCost}\n`;
-      panelList += `  🪙 هزینه سکه: ${value.coinCost}\n`;
-      panelList += `  📌 وضعیت: ${value.enabled ? '✅ فعال' : '❌ غیرفعال'}\n\n`;
-    }
-
-    return bot.sendMessage(chatId,
-      `⚙️ تنظیمات ربات\n\n` +
-      `💰 ارزش هر رفرال: ${settings.referralCoinValue || 1} سکه\n\n` +
-      `📋 تنظیمات پنل‌ها:\n\n${panelList}`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '💰 تنظیم ارزش رفرال', callback_data: 'settings_referral' }],
-            [
-              { text: '📊 تنظیم پنل وایرگارد', callback_data: 'settings_panel_wireguard' },
-              { text: '📊 تنظیم پنل پاسارگارد', callback_data: 'settings_panel_pasargard' }
-            ],
-            [{ text: '🔙 بازگشت به مدیریت', callback_data: 'owner_menu' }]
-          ]
-        }
-      }
-    );
-  }
-
-  function toggleBot(chatId) {
-    if (db.bot.active) {
-      stopTelegramBot();
-      db.bot.active = false;
-      saveDB();
-      return bot.sendMessage(chatId, '🤖 ربات خاموش شد. ✅');
-    } else {
-      try {
-        startTelegramBot();
-        db.bot.active = true;
-        saveDB();
-        scheduleAllJobs();
-        return bot.sendMessage(chatId, '🤖 ربات روشن شد. ✅');
-      } catch (e) {
-        return bot.sendMessage(chatId, '❌ خطا در روشن کردن ربات: ' + e.message);
-      }
-    }
   }
 
   function buildAllBotUserIds() {
@@ -1614,7 +1191,7 @@ async function startTelegramBot() {
     else rows.push([{ text: '🚫 بن کردن', callback_data: 'ban_start_' + bu.id }]);
     rows.push([{ text: '✉️ ارسال پیام', callback_data: 'msguser_' + bu.id }]);
     
-    // Transfer coins buttons
+    // NEW: Transfer coins buttons
     rows.push([
       { text: '💰 10 سکه', callback_data: 'transfer_quick_' + bu.id + '_10' },
       { text: '💰 50 سکه', callback_data: 'transfer_quick_' + bu.id + '_50' },
@@ -1677,9 +1254,6 @@ async function startTelegramBot() {
       console.error('renewal check error:', e);
     }
   }, 30 * 60 * 1000);
-
-  // Schedule all broadcast jobs
-  scheduleAllJobs();
 
   console.log('Telegram bot started. Username: @' + botUsername);
 }
