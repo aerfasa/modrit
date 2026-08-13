@@ -1,7 +1,7 @@
 {
   "name": "pug62-wireguard-panel",
-  "version": "1.0.0",
-  "description": "PUG62 WireGuard management panel with multi-user login and subscription pages",
+  "version": "1.1.0",
+  "description": "PUG62 WireGuard management panel with multi-user login, subscription pages, and an optional Telegram bot",
   "main": "start.js",
   "scripts": {
     "start": "node start.js"
@@ -13,7 +13,6 @@
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "node-telegram-bot-api": "^0.61.0",
-    "node-schedule": "^2.1.1"
+    "node-telegram-bot-api": "^0.66.0"
   }
 }
